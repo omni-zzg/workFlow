@@ -4,7 +4,6 @@ import type { Graph, Node } from '@antv/x6'
 
 import type { NodeDataMap } from '@/schema'
 
-import NodeFrame from './NodeFrame.vue'
 import { useNodeData } from './useNodeData'
 
 const props = defineProps<{ node: Node; graph: Graph }>()
@@ -14,9 +13,11 @@ const answer = computed(() => (data.value.answer ?? '').trim())
 
 <template>
   <div class="flow-node">
-    <NodeFrame node-type="final" title="结束">
-      <span v-if="answer" class="flow-node-text">{{ answer }}</span>
-      <span v-else class="flow-node-placeholder">填写最终答案</span>
-    </NodeFrame>
+    <div class="flow-capsule flow-capsule--final">
+      <span class="flow-capsule__title">结束 · 最终产出</span>
+      <span class="flow-capsule__body" :class="{ 'flow-capsule__body--empty': !answer }">
+        {{ answer || '填写最终产出' }}
+      </span>
+    </div>
   </div>
 </template>

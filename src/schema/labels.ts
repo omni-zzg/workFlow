@@ -3,17 +3,13 @@ import type { ConditionType, EdgeKind, ExitCondition, NodeType } from './types'
 /** 文案在此集中定义，供画布、属性面板、问题面板复用 */
 export const NODE_TYPE_LABELS: Record<NodeType, string> = {
   start: '开始',
-  thought: '思考',
-  action: '行动',
-  observation: '观察',
-  decision: '判断',
+  task: '任务',
   final: '结束',
 }
 
 export const EDGE_KIND_LABELS: Record<EdgeKind, string> = {
-  sequence: '顺序',
-  loop: '循环',
-  exit: '退出',
+  success: '成功',
+  failure: '异常',
 }
 
 export const CONDITION_TYPE_LABELS: Record<ConditionType, string> = {
@@ -26,7 +22,7 @@ export const CONDITION_TYPE_LABELS: Record<ConditionType, string> = {
   custom: '自定义',
 }
 
-/** 退出条件摘要（边标签与判断节点徽标共用） */
+/** 条件摘要（循环退出条件徽标、边标签、面板共用） */
 export function conditionSummary(condition: ExitCondition | null): string {
   if (!condition) return '未定义'
   switch (condition.type) {
@@ -47,7 +43,7 @@ export function conditionSummary(condition: ExitCondition | null): string {
   }
 }
 
-/** 可控退出（用于校验 W3：目标达成 / 最大迭代 / 超时 / 预算） */
+/** 可控退出（用于校验：循环退出条件中应有其一） */
 export const CONTROLLABLE_EXIT_TYPES: ReadonlySet<ConditionType> = new Set([
   'goal_achieved',
   'max_iterations',

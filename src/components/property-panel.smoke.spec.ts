@@ -1,13 +1,12 @@
 // @vitest-environment jsdom
-import type { Edge } from '@antv/x6'
+import type { Edge, Node } from '@antv/x6'
 import { createApp, nextTick } from 'vue'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import { CellStateController } from '@/graph/cellState'
-import { readEdgeCondition } from '@/graph/edgeStyle'
-import { insertRawGraph, projectRawGraph } from '@/graph/project'
-import { graphToSchema } from '@/schema'
-import type { RawEdge, RawNode } from '@/schema'
+import { readEdgeCondition, readEdgeKind } from '@/graph/edgeStyle'
+import { insertRawGraph } from '@/graph/project'
+import type { RawEdge, RawNode, TaskData } from '@/schema'
 import { setGraphRuntime } from '@/stores/graphStore'
 import { initSelectionTracking } from '@/stores/selection'
 import {
@@ -18,7 +17,6 @@ import {
   registerStubShapes,
   sampleRaw,
 } from '@/testing/graphTestUtils'
-import { validate } from '@/validation'
 
 import PropertyPanel from './PropertyPanel.vue'
 
@@ -32,7 +30,7 @@ beforeAll(() => {
 function mountPanel(graph: ReturnType<typeof makeTestGraph>['graph'], cellId: string) {
   setGraphRuntime({ graph, cellStates: new CellStateController(graph) })
   const disposeSelection = initSelectionTracking(graph)
-  graph.select(graph.getCellById(cellId))
+  graph.resetSelection(graph.getCellById(cellId))
   const host = document.createElement('div')
   document.body.appendChild(host)
   const app = createApp(PropertyPanel)
@@ -46,6 +44,18 @@ function mountPanel(graph: ReturnType<typeof makeTestGraph>['graph'], cellId: st
       graph.dispose()
     },
   }
+}
+
+function taskOf(graph: ReturnType<typeof makeTestGraph>['graph'], id = 'n2'): TaskData {
+  return (graph.getCellById(id) as Node).getData<TaskData>()
+}
+
+function setValue(
+  element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+  value: string,
+): void {
+  element.value = value
+  element.dispatchEvent(new Event(element instanceof HTMLSelectElement ? 'change' : 'input'))
 }
 
 describe('属性面板', () => {
@@ -68,137 +78,214 @@ describe('属性面板', () => {
     graph.dispose()
   })
 
-  it('六类节点表单字段正确，必填项有标注（spec 场景）', async () => {
-    const { graph } = makeTestGraph()
-    const nodes: RawNode[] = [
-      { id: 's', nodeType: 'start', x: 0, y: 0, data: { goal: 'g' } },
-      { id: 't', nodeType: 'thought', x: 0, y: 80, data: { content: 'c' } },
-      {
-        id: 'a',
-        nodeType: 'action',
-        x: 0,
-        y: 160,
-        data: { tool: { name: 'get_weather', params: { city: '北京' } } },
-      },
-      { id: 'o', nodeType: 'observation', x: 0, y: 240, data: { content: 'r' } },
-      { id: 'd', nodeType: 'decision', x: 0, y: 320, data: { criteria: 'q' } },
-      { id: 'f', nodeType: 'final', x: 0, y: 400, data: { answer: 'a' } },
-    ]
-    insertRawGraph(graph, { nodes, edges: [] })
-    await flush()
-    const { host, cleanup } = mountPanel(graph, 's')
-    await nextTick()
-
-    expect(host.textContent).toContain('任务目标')
-    expect(host.textContent).toContain('必填')
-
-    graph.resetSelection(graph.getCellById('t'))
-    await nextTick()
-    expect(host.textContent).toContain('推理内容')
-
-    graph.resetSelection(graph.getCellById('a'))
-    await nextTick()
-    expect(host.textContent).toContain('工具名')
-    expect(host.textContent).toContain('工具参数')
-    expect(host.textContent).toContain('必填')
-    const inputs = host.querySelectorAll('input')
-    const values = [...inputs].map((input) => input.value)
-    expect(values).toContain('get_weather')
-    expect(values).toContain('city')
-    expect(values).toContain('北京')
-
-    graph.resetSelection(graph.getCellById('o'))
-    await nextTick()
-    expect(host.textContent).toContain('观察结果')
-
-    graph.resetSelection(graph.getCellById('d'))
-    await nextTick()
-    expect(host.textContent).toContain('判断依据')
-
-    graph.resetSelection(graph.getCellById('f'))
-    await nextTick()
-    expect(host.textContent).toContain('最终答案')
-
-    cleanup()
-  })
-
-  it('选中 final 节点：编辑答案即时写入并纳入撤销（spec 场景）', async () => {
+  it('任务表单：ReAct 单元字段齐全，必填项有标注', async () => {
     const { graph } = makeTestGraph()
     insertRawGraph(graph, sampleRaw())
     await flush()
     const { host, cleanup } = mountPanel(graph, 'n2')
     await nextTick()
 
-    const textarea = host.querySelector('textarea') as HTMLTextAreaElement
-    expect(textarea).not.toBeNull()
-    expect(textarea.value).toBe('答案')
-
-    textarea.value = '新答案'
-    textarea.dispatchEvent(new Event('input'))
-    await nextTick()
-    expect(graph.getCellById('n2').getData()).toEqual({ answer: '新答案' })
-
-    graph.undo()
-    await nextTick()
-    expect(graph.getCellById('n2').getData()).toEqual({ answer: '答案' })
-    expect(textarea.value).toBe('答案') // 外部变更回灌到表单
+    for (const text of ['任务名', '任务目标', '输入', 'ReAct 步骤', '循环退出条件', '前提条件', '异常处理']) {
+      expect(host.textContent).toContain(text)
+    }
+    expect(host.textContent).toContain('必填')
+    // 步骤与退出条件来自数据
+    expect(host.querySelector('textarea[placeholder="这一步判断/推理什么"]')).not.toBeNull()
+    expect(
+      (host.querySelector('.property-panel__condition select') as HTMLSelectElement).value,
+    ).toBe('goal_achieved')
 
     cleanup()
   })
 
-  it('选中 exit 边：条件类型化编辑即时生效并同步标签，撤销可恢复（spec 场景）', async () => {
+  it('编辑任务名即时写入并纳入撤销（spec 场景）', async () => {
     const { graph } = makeTestGraph()
-    insertRawGraph(graph, sampleRaw()) // e1: exit, max_iterations(max=3)
+    insertRawGraph(graph, sampleRaw())
     await flush()
-    const { host, cleanup } = mountPanel(graph, 'e1')
+    const { host, cleanup } = mountPanel(graph, 'n2')
+    await nextTick()
+
+    const nameInput = host.querySelector('input[placeholder="如：查询天气"]') as HTMLInputElement
+    setValue(nameInput, '查询天气')
+    await nextTick()
+    expect(taskOf(graph).name).toBe('查询天气')
+
+    graph.undo()
+    await nextTick()
+    expect(taskOf(graph).name).toBe('测试任务')
+    expect(nameInput.value).toBe('测试任务')
+
+    cleanup()
+  })
+
+  it('步骤序列：可添加步骤、编辑思考与动作，数据即时同步', async () => {
+    const { graph } = makeTestGraph()
+    insertRawGraph(graph, sampleRaw())
+    await flush()
+    const { host, cleanup } = mountPanel(graph, 'n2')
+    await nextTick()
+
+    // 添加步骤
+    const addStepButton = [...host.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('添加步骤'),
+    ) as HTMLButtonElement
+    addStepButton.click()
+    await nextTick()
+    expect(taskOf(graph).steps).toHaveLength(2)
+
+    // 编辑第二步的思考
+    const thoughtAreas = host.querySelectorAll('textarea[placeholder="这一步判断/推理什么"]')
+    setValue(thoughtAreas[1] as HTMLTextAreaElement, '第二步的思考')
+    await nextTick()
+    expect(taskOf(graph).steps[1]!.thought).toBe('第二步的思考')
+
+    // 为第一步添加动作与参数
+    const firstStepBlock = host.querySelectorAll('.property-panel__step')[0]!
+    const addActionButton = [...firstStepBlock.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('添加动作'),
+    ) as HTMLButtonElement
+    addActionButton.click()
+    await nextTick()
+    expect(taskOf(graph).steps[0]!.actions).toHaveLength(2)
+
+    cleanup()
+  })
+
+  it('循环退出条件：添加/修改类型/删除即时生效', async () => {
+    const { graph } = makeTestGraph()
+    insertRawGraph(graph, sampleRaw())
+    await flush()
+    const { host, cleanup } = mountPanel(graph, 'n2')
+    await nextTick()
+
+    const addButton = [...host.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('添加退出条件'),
+    ) as HTMLButtonElement
+    addButton.click()
+    await nextTick()
+    expect(taskOf(graph).loop.exitConditions).toHaveLength(2)
+
+    // 把新增条件改为 timeout
+    const selects = host.querySelectorAll('.property-panel__condition select')
+    setValue(selects[1] as HTMLSelectElement, 'timeout')
+    await nextTick()
+    expect(taskOf(graph).loop.exitConditions[1]).toEqual({
+      type: 'timeout',
+      params: { seconds: 30 },
+    })
+
+    // 删除第一个条件
+    const removeButton = host.querySelector(
+      '.property-panel__condition button',
+    ) as HTMLButtonElement
+    removeButton.click()
+    await nextTick()
+    expect(taskOf(graph).loop.exitConditions).toHaveLength(1)
+
+    cleanup()
+  })
+
+  it('异常处理：反思与重试上限编辑即时生效', async () => {
+    const { graph } = makeTestGraph()
+    insertRawGraph(graph, sampleRaw())
+    await flush()
+    const { host, cleanup } = mountPanel(graph, 'n2')
+    await nextTick()
+
+    const reflection = host.querySelector(
+      'textarea[placeholder^="如：分析失败原因"]',
+    ) as HTMLTextAreaElement
+    setValue(reflection, '网络问题？')
+    await nextTick()
+    expect(taskOf(graph).onFailure.reflection).toBe('网络问题？')
+
+    const retries = host.querySelector('input[type="number"]') as HTMLInputElement
+    setValue(retries, '5')
+    await nextTick()
+    expect(taskOf(graph).onFailure.maxRetries).toBe(5)
+
+    cleanup()
+  })
+
+  it('连线编辑：kind 切换与条件类型化编辑（含边标签同步）（spec 场景）', async () => {
+    const { graph } = makeTestGraph()
+    insertRawGraph(graph, sampleRaw())
+    await flush()
+    const { host, cleanup } = mountPanel(graph, 'e2') // success + max_iterations(max=3)
     await nextTick()
 
     const selects = host.querySelectorAll('select')
-    expect(selects.length).toBe(2) // 连线类型 + 条件类型
+    const kindSelect = selects[0] as HTMLSelectElement
     const conditionSelect = selects[1] as HTMLSelectElement
+    expect(kindSelect.value).toBe('success')
     expect(conditionSelect.value).toBe('max_iterations')
 
-    conditionSelect.value = 'timeout'
-    conditionSelect.dispatchEvent(new Event('change'))
+    // 条件改为 timeout → 条件数据与边标签即时同步
+    setValue(conditionSelect, 'timeout')
     await nextTick()
-
-    const edge = graph.getCellById('e1') as Edge
+    const edge = graph.getCellById('e2') as Edge
     expect(readEdgeCondition(edge)).toEqual({ type: 'timeout', params: { seconds: 30 } })
-    expect(labelTexts(edge)).toEqual(['超时 30s']) // 边标签即时同步
+    expect(labelTexts(edge)).toEqual(['超时 30s'])
+
+    // 改为 failure → 异常样式
+    setValue(kindSelect, 'failure')
+    await nextTick()
+    expect(readEdgeKind(edge)).toBe('failure')
+    expect(edge.attr('line/strokeDasharray')).toBe('6 4')
 
     graph.undo()
     await nextTick()
-    expect(readEdgeCondition(edge)).toEqual({ type: 'max_iterations', params: { max: 3 } })
+    expect(readEdgeKind(edge)).toBe('success')
 
     cleanup()
   })
 
-  it('sequence 边改为 exit 且未选条件：条件为空并被校验标记 E4（spec 场景）', async () => {
-    const { graph } = makeTestGraph()
-    const nodes: RawNode[] = [
-      { id: 'n1', nodeType: 'start', x: 0, y: 0, data: { goal: 'g' } },
-      { id: 'n2', nodeType: 'final', x: 0, y: 100, data: { answer: 'a' } },
-    ]
-    const edges: RawEdge[] = [
-      { id: 'e1', source: 'n1', target: 'n2', kind: 'sequence', condition: null },
-    ]
-    insertRawGraph(graph, { nodes, edges })
+  it('成功边未设前提条件时给出 E5 提示（start 出边豁免）', async () => {
+    function makeRaw(): { nodes: RawNode[]; edges: RawEdge[] } {
+      const nodes: RawNode[] = [
+        { id: 's', nodeType: 'start', x: 0, y: 0, data: { goal: 'g' } },
+        {
+          id: 't',
+          nodeType: 'task',
+          x: 0,
+          y: 100,
+          data: {
+            name: '任务',
+            goal: '目标',
+            input: '',
+            steps: [
+              { id: 't-s1', thought: '想', actions: [{ name: 'a', params: {} }], observation: '看' },
+            ],
+            loop: { exitConditions: [{ type: 'goal_achieved' }] },
+            precondition: '前提',
+            onFailure: { reflection: '反思', replan: '重规划', maxRetries: 1 },
+          },
+        },
+        { id: 'f', nodeType: 'final', x: 0, y: 200, data: { answer: 'a' } },
+      ]
+      const edges: RawEdge[] = [
+        { id: 'e1', source: 's', target: 't', kind: 'success', condition: null },
+        { id: 'e2', source: 't', target: 'f', kind: 'success', condition: null },
+      ]
+      return { nodes, edges }
+    }
+
+    // 场景 A：task → final 的 success 边未设条件 → 有 E5 提示
+    const first = makeTestGraph()
+    insertRawGraph(first.graph, makeRaw())
     await flush()
-    const { host, cleanup } = mountPanel(graph, 'e1')
+    const successTask = mountPanel(first.graph, 'e2')
     await nextTick()
+    expect(successTask.host.textContent).toContain('E5')
+    successTask.cleanup()
 
-    const kindSelect = host.querySelectorAll('select')[0] as HTMLSelectElement
-    kindSelect.value = 'exit'
-    kindSelect.dispatchEvent(new Event('change'))
+    // 场景 B：start 出边豁免 → 无提示
+    const second = makeTestGraph()
+    insertRawGraph(second.graph, makeRaw())
+    await flush()
+    const startEdge = mountPanel(second.graph, 'e1')
     await nextTick()
-
-    const edge = graph.getCellById('e1') as Edge
-    expect(readEdgeCondition(edge)).toBeNull()
-    expect(host.textContent).toContain('该退出边尚未设置条件')
-
-    const schema = graphToSchema(projectRawGraph(graph))
-    expect(validate(schema).some((issue) => issue.ruleId === 'E4')).toBe(true)
-
-    cleanup()
+    expect(startEdge.host.textContent).not.toContain('E5')
+    startEdge.cleanup()
   })
 })

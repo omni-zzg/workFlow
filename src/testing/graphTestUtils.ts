@@ -82,20 +82,44 @@ export function makeTestGraph(): { graph: Graph; container: HTMLDivElement } {
   return { graph, container }
 }
 
-/** 两节点一条 exit 边的最小图 */
+/** 最小任务流：start → task → final，含 success 与 failure 边 */
 export function sampleRaw(): { nodes: RawNode[]; edges: RawEdge[] } {
   const nodes: RawNode[] = [
     { id: 'n1', nodeType: 'start', x: 10, y: 10, data: { goal: '测试目标' } },
-    { id: 'n2', nodeType: 'final', x: 10, y: 120, data: { answer: '答案' } },
+    {
+      id: 'n2',
+      nodeType: 'task',
+      x: 10,
+      y: 120,
+      data: {
+        name: '测试任务',
+        goal: '完成任务',
+        input: '输入',
+        steps: [
+          {
+            id: 'n2-s1',
+            thought: '思考',
+            actions: [{ name: 'tool', params: { k: 'v' } }],
+            observation: '观察',
+          },
+        ],
+        loop: { exitConditions: [{ type: 'goal_achieved' }] },
+        precondition: '前提',
+        onFailure: { reflection: '反思', replan: '重规划', maxRetries: 3 },
+      },
+    },
+    { id: 'n3', nodeType: 'final', x: 10, y: 400, data: { answer: '答案' } },
   ]
   const edges: RawEdge[] = [
+    { id: 'e1', source: 'n1', target: 'n2', kind: 'success', condition: null },
     {
-      id: 'e1',
-      source: 'n1',
-      target: 'n2',
-      kind: 'exit',
+      id: 'e2',
+      source: 'n2',
+      target: 'n3',
+      kind: 'success',
       condition: { type: 'max_iterations', params: { max: 3 } } satisfies ExitCondition,
     },
+    { id: 'e3', source: 'n2', target: 'n3', kind: 'failure', condition: null },
   ]
   return { nodes, edges }
 }

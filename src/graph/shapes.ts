@@ -6,10 +6,7 @@ import type { NodeType } from '@/schema'
  */
 export const SHAPE_BY_NODE_TYPE: Record<NodeType, string> = {
   start: 'flow-start',
-  thought: 'flow-thought',
-  action: 'flow-action',
-  observation: 'flow-observation',
-  decision: 'flow-decision',
+  task: 'flow-task',
   final: 'flow-final',
 }
 
@@ -17,21 +14,11 @@ export const NODE_TYPE_BY_SHAPE: Record<string, NodeType> = Object.fromEntries(
   Object.entries(SHAPE_BY_NODE_TYPE).map(([type, shape]) => [shape, type as NodeType]),
 )
 
-/** 节点默认尺寸（尺寸不持久化，创建时按类型给定，见 design D4） */
+/** 节点默认尺寸（尺寸不持久化，创建时按类型给定） */
 export const NODE_SIZE_BY_TYPE: Record<NodeType, { width: number; height: number }> = {
   start: { width: 208, height: 58 },
-  thought: { width: 232, height: 84 },
-  action: { width: 232, height: 84 },
-  observation: { width: 232, height: 84 },
-  decision: { width: 224, height: 104 },
+  task: { width: 272, height: 196 },
   final: { width: 208, height: 58 },
 }
 
-export const NODE_TYPES: readonly NodeType[] = [
-  'start',
-  'thought',
-  'action',
-  'observation',
-  'decision',
-  'final',
-]
+export const NODE_TYPES: readonly NodeType[] = ['start', 'task', 'final']

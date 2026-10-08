@@ -7,6 +7,10 @@ export type RuleId =
   | 'E2'
   | 'E3'
   | 'E4'
+  | 'E5'
+  | 'E6'
+  | 'E7'
+  | 'E8'
   | 'W1'
   | 'W2'
   | 'W3'
@@ -14,7 +18,6 @@ export type RuleId =
   | 'W5'
   | 'W6'
   | 'W7'
-  | 'W8'
 
 export interface Issue {
   severity: Severity
@@ -32,18 +35,21 @@ export interface RuleMeta {
 
 /** 规则注册表：error = 结构非法；warning = 规范性建议 */
 export const RULES: readonly RuleMeta[] = [
-  { id: 'E1', severity: 'error', title: '目标与入口检查' },
-  { id: 'E2', severity: 'error', title: '死循环检测' },
-  { id: 'E3', severity: 'error', title: '终止路径检查' },
-  { id: 'E4', severity: 'error', title: '退出条件完整性' },
-  { id: 'W1', severity: 'warning', title: 'ReAct 三要素检查' },
-  { id: 'W2', severity: 'warning', title: '循环控制点检查' },
-  { id: 'W3', severity: 'warning', title: '可控退出检查' },
-  { id: 'W4', severity: 'warning', title: '不可达节点检查' },
-  { id: 'W5', severity: 'warning', title: '死路节点检查' },
-  { id: 'W6', severity: 'warning', title: '标注一致性检查' },
-  { id: 'W7', severity: 'warning', title: '退出边源头检查' },
-  { id: 'W8', severity: 'warning', title: '入口唯一性检查' },
+  { id: 'E1', severity: 'error', title: '任务标识检查' },
+  { id: 'E2', severity: 'error', title: '步骤序列检查' },
+  { id: 'E3', severity: 'error', title: '循环退出条件检查' },
+  { id: 'E4', severity: 'error', title: '前提条件检查' },
+  { id: 'E5', severity: 'error', title: '成功边条件检查' },
+  { id: 'E6', severity: 'error', title: '开始检查' },
+  { id: 'E7', severity: 'error', title: '终止路径检查' },
+  { id: 'E8', severity: 'error', title: '失败回退环检查' },
+  { id: 'W1', severity: 'warning', title: '步骤完整性检查' },
+  { id: 'W2', severity: 'warning', title: '可控退出检查' },
+  { id: 'W3', severity: 'warning', title: '异常处理检查' },
+  { id: 'W4', severity: 'warning', title: '失败出口检查' },
+  { id: 'W5', severity: 'warning', title: '不可达节点检查' },
+  { id: 'W6', severity: 'warning', title: '流程中断检查' },
+  { id: 'W7', severity: 'warning', title: '入口唯一性检查' },
 ]
 
 export const RULE_TITLES: Record<RuleId, string> = Object.fromEntries(

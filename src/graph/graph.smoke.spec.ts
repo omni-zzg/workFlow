@@ -5,7 +5,6 @@ import { beforeAll, describe, expect, it } from 'vitest'
 
 import NodePalette from '@/components/NodePalette.vue'
 import { graphToSchema } from '@/schema'
-import type { RawEdge, RawNode } from '@/schema'
 import { initDocumentTracking, useDocument } from '@/stores/document'
 import { setGraphRuntime } from '@/stores/graphStore'
 import { initSelectionTracking, useSelection } from '@/stores/selection'
@@ -22,13 +21,13 @@ import { validate } from '@/validation'
 import { CellStateController } from './cellState'
 import { readEdgeKind } from './edgeStyle'
 import { removeSelectedCells } from './mutate'
-import DecisionNode from './nodes/DecisionNode.vue'
+import TaskNode from './nodes/TaskNode.vue'
 import { insertRawGraph, isDuplicateConnection, projectRawGraph } from './project'
 import { buildReactTemplateCells, insertReactTemplate } from './template'
 
 /**
  * 图封装层的模型级冒烟测试（jsdom）：
- * 验证实例/插件、投影与撤销、态标注、连线推断与模板。节点视觉与交互仍由人工验收。
+ * 验证实例/插件、投影与撤销、态标注、任务卡片骨架、回边识别与模板。交互仍由人工验收。
  */
 
 beforeAll(() => {
@@ -49,13 +48,13 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     insertRawGraph(graph, sampleRaw())
 
     const projected = projectRawGraph(graph)
-    expect(projected.nodes.map((n) => n.id).sort()).toEqual(['n1', 'n2'])
-    expect(projected.nodes.find((n) => n.id === 'n1')).toMatchObject({
-      nodeType: 'start',
-      data: { goal: '测试目标' },
+    expect(projected.nodes.map((n) => n.id).sort()).toEqual(['n1', 'n2', 'n3'])
+    expect(projected.nodes.find((n) => n.id === 'n2')).toMatchObject({
+      nodeType: 'task',
+      data: { name: '测试任务', precondition: '前提' },
     })
-    const edge = projected.edges.find((e) => e.id === 'e1')
-    expect(edge).toMatchObject({ kind: 'exit', source: 'n1', target: 'n2' })
+    const edge = projected.edges.find((e) => e.id === 'e2')
+    expect(edge).toMatchObject({ kind: 'success', source: 'n2', target: 'n3' })
     expect(edge?.condition).toEqual({ type: 'max_iterations', params: { max: 3 } })
 
     expect(graph.canUndo()).toBe(true)
@@ -66,7 +65,7 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
 
     graph.redo()
     await flush()
-    expect(graph.getNodes()).toHaveLength(2)
+    expect(graph.getNodes()).toHaveLength(3)
     graph.dispose()
   })
 
@@ -76,16 +75,16 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     await flush()
 
     const controller = new CellStateController(graph)
-    controller.applyStates(new Map([['n1', 'error']]))
+    controller.applyStates(new Map([['n2', 'error']]))
 
-    const view = graph.findViewByCell('n1')
+    const view = graph.findViewByCell('n2')
     expect(view).not.toBeNull()
     expect(view!.container.classList.contains('flow-state--error')).toBe(true)
 
     controller.applyStates(new Map())
     expect(view!.container.classList.contains('flow-state--error')).toBe(false)
 
-    controller.flash('n1')
+    controller.flash('n2')
     expect(view!.container.classList.contains('flow-state--flash')).toBe(true)
     controller.clearAll()
     expect(view!.container.classList.contains('flow-state--flash')).toBe(false)
@@ -102,12 +101,12 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     markClean()
     insertRawGraph(graph, sampleRaw())
     await flush()
-    expect(nodeCount.value).toBe(2)
+    expect(nodeCount.value).toBe(3)
     expect(dirty.value).toBe(true)
 
-    graph.select(graph.getCellById('n1'))
+    graph.select(graph.getCellById('n2'))
     await flush()
-    expect(useSelection().value).toEqual({ cellId: 'n1', kind: 'node' })
+    expect(useSelection().value).toEqual({ cellId: 'n2', kind: 'node' })
 
     // 多选 => 空态（spec: 选中多个对象时面板显示空态）
     graph.select([graph.getCellById('n1'), graph.getCellById('n2')])
@@ -119,76 +118,68 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     graph.dispose()
   })
 
-  it('三类边样式：loop 虚线 +「循环」标签；exit 条件摘要标签；sequence 无标签', async () => {
+  it('两类边样式：success 前置条件标签；failure 虚线 +「异常」标签', async () => {
     const { graph } = makeTestGraph()
-    const nodes: RawNode[] = [
-      { id: 'n1', nodeType: 'start', x: 0, y: 0, data: { goal: 'g' } },
-      { id: 'n2', nodeType: 'thought', x: 0, y: 100, data: { content: 'c' } },
-      { id: 'n3', nodeType: 'final', x: 220, y: 100, data: { answer: 'a' } },
-    ]
-    const edges: RawEdge[] = [
-      { id: 'e1', source: 'n1', target: 'n2', kind: 'sequence', condition: null },
-      { id: 'e2', source: 'n2', target: 'n1', kind: 'loop', condition: null },
-      {
-        id: 'e3',
-        source: 'n1',
-        target: 'n3',
-        kind: 'exit',
-        condition: { type: 'max_iterations', params: { max: 8 } },
-      },
-    ]
-    insertRawGraph(graph, { nodes, edges })
+    insertRawGraph(graph, sampleRaw())
     await flush()
 
-    const loop = graph.getCellById('e2') as Edge
-    expect(labelTexts(loop)).toEqual(['循环'])
-    expect(loop.attr('line/strokeDasharray')).toBe('6 4')
+    const successWithCondition = graph.getCellById('e2') as Edge
+    expect(labelTexts(successWithCondition)).toEqual(['max=3'])
+    expect(successWithCondition.attr('line/strokeDasharray')).toBeFalsy()
 
-    const exit = graph.getCellById('e3') as Edge
-    expect(labelTexts(exit)).toEqual(['max=8'])
-    expect(exit.attr('line/strokeDasharray')).toBeFalsy()
+    const failureEdge = graph.getCellById('e3') as Edge
+    expect(labelTexts(failureEdge)).toEqual(['异常'])
+    expect(failureEdge.attr('line/strokeDasharray')).toBe('6 4')
 
-    const seq = graph.getCellById('e1') as Edge
-    expect(seq.getLabels()).toHaveLength(0)
+    // start 出边条件为 null（豁免）——不显示标签
+    const startEdge = graph.getCellById('e1') as Edge
+    expect(startEdge.getLabels()).toHaveLength(0)
 
     graph.dispose()
   })
 
-  it('decision 节点渲染退出条件徽标（无则占位，随边数据更新）', async () => {
+  it('任务卡片常驻 ReAct 骨架：内容随数据更新（含退出条件徽标与占位）', async () => {
     const { graph } = makeTestGraph()
-    insertRawGraph(graph, {
-      nodes: [
-        { id: 'd1', nodeType: 'decision', x: 0, y: 0, data: { criteria: '资料是否足够' } },
-        { id: 'f1', nodeType: 'final', x: 220, y: 0, data: { answer: 'a' } },
-      ],
-      edges: [],
-    })
-    const node = graph.getCellById('d1') as Node
+    insertRawGraph(graph, sampleRaw())
+    await flush()
+    const node = graph.getCellById('n2') as Node
 
     const host = document.createElement('div')
     document.body.appendChild(host)
-    const app = createApp(DecisionNode, { node, graph })
+    const app = createApp(TaskNode, { node, graph })
     app.mount(host)
 
-    expect(host.textContent).toContain('未定义退出条件')
-    expect(host.textContent).toContain('资料是否足够')
+    // 骨架摘要
+    expect(host.textContent).toContain('测试任务')
+    expect(host.textContent).toContain('输入')
+    expect(host.textContent).toContain('思考')
+    expect(host.textContent).toContain('观察')
+    expect(host.textContent).toContain('目标达成') // 退出条件徽标
+    expect(host.textContent).toContain('前提')
+    expect(host.textContent).toContain('失败重试 ≤3')
 
-    graph.addEdge({
-      id: 'e1',
-      source: 'd1',
-      target: 'f1',
-      data: { kind: 'exit', condition: { type: 'goal_achieved' } },
+    // 更新数据（names / 退出条件）→ 即时刷新
+    const current = node.getData<Record<string, unknown>>()
+    node.replaceData({
+      ...current,
+      name: '新任务名',
+      loop: { exitConditions: [{ type: 'error' }] },
     })
     await nextTick()
-    await flush()
-    expect(host.textContent).toContain('目标达成')
-    expect(host.textContent).not.toContain('未定义退出条件')
+    expect(host.textContent).toContain('新任务名')
+    expect(host.textContent).toContain('异常终止')
+    expect(host.textContent).not.toContain('目标达成')
+
+    // 清空退出条件 → 占位
+    node.replaceData({ ...node.getData<Record<string, unknown>>(), loop: { exitConditions: [] } })
+    await nextTick()
+    expect(host.textContent).toContain('未定义退出条件')
 
     app.unmount()
     graph.dispose()
   })
 
-  it('调色板点击创建：节点落在画布中心、数据为空并纳入撤销', async () => {
+  it('调色板点击创建：三类节点 + 模板按钮，创建节点落于画布且数据为空', async () => {
     const { graph } = makeTestGraph()
     setGraphRuntime({ graph, cellStates: new CellStateController(graph) })
 
@@ -198,13 +189,16 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     app.mount(host)
 
     const buttons = host.querySelectorAll('button')
-    expect(buttons.length).toBe(7) // 六类节点 + 插入 ReAct 模板
-    ;(buttons[0] as HTMLButtonElement).click()
+    expect(buttons.length).toBe(4) // 三类节点 + 插入任务流模板
+    ;(buttons[1] as HTMLButtonElement).click() // 任务
     await flush()
 
     expect(graph.getNodes()).toHaveLength(1)
-    expect(graph.getNodes()[0]!.getData()).toEqual({ goal: '' })
-    expect(graph.canUndo()).toBe(true)
+    const node = graph.getNodes()[0]!
+    expect(node.shape).toBe('flow-task')
+    const data = node.getData<{ name: string; steps: unknown[] }>()
+    expect(data.name).toBe('')
+    expect(data.steps).toHaveLength(1) // 新任务自带一个空步骤
 
     app.unmount()
     setGraphRuntime(null)
@@ -216,55 +210,55 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     insertRawGraph(graph, sampleRaw())
     await flush()
 
-    graph.select(graph.getCellById('n1'))
+    graph.select(graph.getCellById('n2'))
     removeSelectedCells(graph)
     await flush()
-    expect(graph.getNodes()).toHaveLength(1)
+    expect(graph.getNodes()).toHaveLength(2)
     expect(graph.getEdges()).toHaveLength(0)
 
     graph.undo()
     await flush()
-    expect(graph.getNodes()).toHaveLength(2)
-    expect(graph.getEdges()).toHaveLength(1)
+    expect(graph.getNodes()).toHaveLength(3)
+    expect(graph.getEdges()).toHaveLength(3)
     graph.dispose()
   })
 
-  it('新连线按拓扑自动识别回边（loop），且不产生额外撤销步骤', async () => {
+  it('新连线指向祖先（构成环）自动识别为 failure，且不产生额外撤销步骤', async () => {
     const { graph } = makeTestGraph()
-    insertRawGraph(graph, sampleRaw()) // n1 -> n2
+    insertRawGraph(graph, sampleRaw())
     await flush()
 
-    // n2 -> n1：n1 是 n2 的祖先，构成环 => loop
-    const edge = graph.addEdge({ id: 'loop-edge', source: 'n2', target: 'n1' })
+    // n2 -> n1：n1 是 n2 的祖先，构成环 => failure（重试/回退路径）
+    const edge = graph.addEdge({ id: 'back-edge', source: 'n2', target: 'n1' })
     await flush()
-    expect(readEdgeKind(edge)).toBe('loop')
-    expect(labelTexts(edge)).toEqual(['循环'])
+    expect(readEdgeKind(edge)).toBe('failure')
+    expect(labelTexts(edge)).toEqual(['异常'])
 
-    // 推断写入不计入独立撤销步骤：一次撤销即移除整条边
     graph.undo()
     await flush()
-    expect(graph.getEdges().find((item) => item.id === 'loop-edge')).toBeUndefined()
+    expect(graph.getEdges().find((item) => item.id === 'back-edge')).toBeUndefined()
     graph.dispose()
   })
 
-  it('重复连线判定：同向已存在则拒绝，重连自身与反向连线除外', async () => {
+  it('重复连线判定按 (source, target, kind)：同向同类拒绝，异类允许', async () => {
     const { graph } = makeTestGraph()
-    insertRawGraph(graph, sampleRaw()) // e1: n1 -> n2
+    insertRawGraph(graph, sampleRaw())
     await flush()
-    expect(isDuplicateConnection(graph, 'n1', 'n2')).toBe(true)
-    expect(isDuplicateConnection(graph, 'n2', 'n1')).toBe(false) // 反向允许（构成回边）
-    expect(isDuplicateConnection(graph, 'n1', 'n2', 'e1')).toBe(false) // 重连自身
+    expect(isDuplicateConnection(graph, 'n2', 'n3', 'success')).toBe(true) // e2
+    expect(isDuplicateConnection(graph, 'n2', 'n3', 'failure')).toBe(true) // e3
+    expect(isDuplicateConnection(graph, 'n1', 'n2', 'failure')).toBe(false) // 仅存在 success
+    expect(isDuplicateConnection(graph, 'n2', 'n3', 'success', 'e2')).toBe(false) // 重连自身
     graph.dispose()
   })
 
-  it('ReAct 模板：结构完整（四条顺序边 + loop + goal_achieved exit）且零校验问题', () => {
+  it('任务流模板：结构完整（2 条 success + 1 条 failure）且零校验问题', () => {
     const cells = buildReactTemplateCells()
-    expect(cells.nodes).toHaveLength(6)
+    expect(cells.nodes).toHaveLength(3)
+    expect(cells.nodes.map((node) => node.nodeType)).toEqual(['start', 'task', 'final'])
     const kinds = cells.edges.map((edge) => edge.kind)
-    expect(kinds.filter((kind) => kind === 'sequence')).toHaveLength(4)
-    expect(kinds.filter((kind) => kind === 'loop')).toHaveLength(1)
-    expect(kinds.filter((kind) => kind === 'exit')).toHaveLength(1)
-    expect(cells.edges.find((edge) => edge.kind === 'exit')?.condition).toEqual({
+    expect(kinds.filter((kind) => kind === 'success')).toHaveLength(2)
+    expect(kinds.filter((kind) => kind === 'failure')).toHaveLength(1)
+    expect(cells.edges.find((edge) => edge.kind === 'success' && edge.condition)?.condition).toEqual({
       type: 'goal_achieved',
     })
 
@@ -277,8 +271,8 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     insertReactTemplate(graph)
     insertReactTemplate(graph)
     await flush()
-    expect(graph.getNodes()).toHaveLength(12)
-    expect(graph.getEdges()).toHaveLength(12)
+    expect(graph.getNodes()).toHaveLength(6)
+    expect(graph.getEdges()).toHaveLength(6)
     graph.dispose()
   })
 })

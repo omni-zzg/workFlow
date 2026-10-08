@@ -1,5 +1,6 @@
 import type { Node } from '@antv/x6'
 
+import { createStepId } from '@/schema'
 import type { NodeData, NodeType } from '@/schema'
 
 import { NODE_SIZE_BY_TYPE, SHAPE_BY_NODE_TYPE } from './shapes'
@@ -9,14 +10,17 @@ export function emptyDataFor(type: NodeType): NodeData {
   switch (type) {
     case 'start':
       return { goal: '' }
-    case 'thought':
-      return { content: '' }
-    case 'action':
-      return { tool: { name: '', params: {} } }
-    case 'observation':
-      return { content: '' }
-    case 'decision':
-      return {}
+    case 'task':
+      return {
+        name: '',
+        goal: '',
+        input: '',
+        // 新任务自带一个空步骤，引导填写第一组「思考-行动-观察」
+        steps: [{ id: createStepId(), thought: '', actions: [], observation: '' }],
+        loop: { exitConditions: [] },
+        precondition: '',
+        onFailure: { reflection: '', replan: '', maxRetries: 3 },
+      }
     case 'final':
       return { answer: '' }
   }

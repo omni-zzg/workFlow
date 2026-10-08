@@ -20,6 +20,32 @@ const conditionZod = z.discriminatedUnion('type', [
   z.object({ type: z.literal('custom'), text: z.string() }),
 ])
 
+const actionZod = z.object({
+  name: z.string(),
+  params: z.record(z.string(), z.unknown()),
+})
+
+const stepZod = z.object({
+  id: z.string().min(1),
+  thought: z.string(),
+  actions: z.array(actionZod),
+  observation: z.string(),
+})
+
+const taskDataZod = z.object({
+  name: z.string(),
+  goal: z.string(),
+  input: z.string(),
+  steps: z.array(stepZod),
+  loop: z.object({ exitConditions: z.array(conditionZod) }),
+  precondition: z.string(),
+  onFailure: z.object({
+    reflection: z.string(),
+    replan: z.string(),
+    maxRetries: z.number(),
+  }),
+})
+
 const nodeZod = z.discriminatedUnion('type', [
   z.object({
     id: z.string().min(1),
@@ -29,29 +55,9 @@ const nodeZod = z.discriminatedUnion('type', [
   }),
   z.object({
     id: z.string().min(1),
-    type: z.literal('thought'),
+    type: z.literal('task'),
     position: positionZod,
-    data: z.object({ content: z.string() }),
-  }),
-  z.object({
-    id: z.string().min(1),
-    type: z.literal('action'),
-    position: positionZod,
-    data: z.object({
-      tool: z.object({ name: z.string(), params: z.record(z.string(), z.unknown()) }),
-    }),
-  }),
-  z.object({
-    id: z.string().min(1),
-    type: z.literal('observation'),
-    position: positionZod,
-    data: z.object({ content: z.string() }),
-  }),
-  z.object({
-    id: z.string().min(1),
-    type: z.literal('decision'),
-    position: positionZod,
-    data: z.object({ criteria: z.string().optional() }),
+    data: taskDataZod,
   }),
   z.object({
     id: z.string().min(1),
@@ -67,15 +73,12 @@ const edgeBase = {
   target: z.string().min(1),
 }
 
+// 条件在草稿态可为 null（由校验规则标记），结构上允许
+const edgeDataZod = z.object({ condition: conditionZod.nullable() })
+
 const edgeZod = z.discriminatedUnion('kind', [
-  z.object({ ...edgeBase, kind: z.literal('sequence') }),
-  z.object({ ...edgeBase, kind: z.literal('loop') }),
-  z.object({
-    ...edgeBase,
-    kind: z.literal('exit'),
-    // 条件在草稿态可为 null（由校验规则 E4 标记），结构上允许
-    data: z.object({ condition: conditionZod.nullable() }),
-  }),
+  z.object({ ...edgeBase, kind: z.literal('success'), data: edgeDataZod }),
+  z.object({ ...edgeBase, kind: z.literal('failure'), data: edgeDataZod }),
 ])
 
 export const flowSchemaZod = z.object({
@@ -89,15 +92,8 @@ export type ParseFlowSchemaResult =
   | { ok: true; schema: FlowSchema }
   | { ok: false; errors: string[] }
 
-const NODE_TYPES: readonly string[] = [
-  'start',
-  'thought',
-  'action',
-  'observation',
-  'decision',
-  'final',
-]
-const EDGE_KINDS: readonly string[] = ['sequence', 'loop', 'exit']
+const NODE_TYPES: readonly string[] = ['start', 'task', 'final']
+const EDGE_KINDS: readonly string[] = ['success', 'failure']
 const CONDITION_TYPES: readonly string[] = [
   'goal_achieved',
   'max_iterations',
@@ -117,9 +113,29 @@ function collectUnknownTypeErrors(input: unknown): string[] {
   const nodes = Array.isArray(obj.nodes) ? obj.nodes : []
   nodes.forEach((node, index) => {
     if (node && typeof node === 'object') {
-      const type = (node as Record<string, unknown>).type
+      const record = node as Record<string, unknown>
+      const type = record.type
       if (typeof type === 'string' && !NODE_TYPES.includes(type)) {
         errors.push(`nodes.${index}.type：未知的节点类型 "${type}"`)
+      }
+      // 任务节点的循环退出条件同样前置扫描，给出比 zod 泛化错误更精确的说明
+      if (type === 'task' && record.data && typeof record.data === 'object') {
+        const loop = (record.data as Record<string, unknown>).loop
+        if (loop && typeof loop === 'object') {
+          const exitConditions = (loop as Record<string, unknown>).exitConditions
+          if (Array.isArray(exitConditions)) {
+            exitConditions.forEach((condition, conditionIndex) => {
+              if (condition && typeof condition === 'object') {
+                const conditionType = (condition as Record<string, unknown>).type
+                if (typeof conditionType === 'string' && !CONDITION_TYPES.includes(conditionType)) {
+                  errors.push(
+                    `nodes.${index}.data.loop.exitConditions.${conditionIndex}：未知的条件类型 "${conditionType}"`,
+                  )
+                }
+              }
+            })
+          }
+        }
       }
     }
   })
@@ -133,13 +149,13 @@ function collectUnknownTypeErrors(input: unknown): string[] {
         errors.push(`edges.${index}.kind：未知的连线类型 "${kind}"`)
       }
       const data = record.data
-      if (kind === 'exit' && data && typeof data === 'object') {
+      if (data && typeof data === 'object') {
         const condition = (data as Record<string, unknown>).condition
         if (condition && typeof condition === 'object') {
           const conditionType = (condition as Record<string, unknown>).type
           if (typeof conditionType === 'string' && !CONDITION_TYPES.includes(conditionType)) {
             errors.push(
-              `edges.${index}.data.condition.type：未知的退出条件类型 "${conditionType}"`,
+              `edges.${index}.data.condition.type：未知的条件类型 "${conditionType}"`,
             )
           }
         }

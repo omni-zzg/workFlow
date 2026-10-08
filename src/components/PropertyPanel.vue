@@ -2,15 +2,18 @@
 import { computed, ref, watch } from 'vue'
 import type { Cell, Edge, Node } from '@antv/x6'
 
-import { mutate, requireNodeType } from '@/graph'
-import { CONDITION_TYPE_LABELS, EDGE_KIND_LABELS, NODE_TYPE_LABELS } from '@/schema'
-import type { ConditionType, EdgeKind, ExitCondition, NodeData, NodeDataMap } from '@/schema'
+import { mutate, readEdgeCondition, readEdgeKind, requireNodeType } from '@/graph'
+import { createStepId, EDGE_KIND_LABELS, NODE_TYPE_LABELS } from '@/schema'
+import type { EdgeKind, ExitCondition, NodeData, NodeDataMap, ReactStep } from '@/schema'
 import { useGraphRuntime } from '@/stores/graphStore'
 import { useSelection } from '@/stores/selection'
 
+import ConditionEditor from './ConditionEditor.vue'
+
 /**
  * 属性面板（spec: flow-property-editing）：
- * - 面板按选中对象切换表单；未选中或多选时为空态
+ * - 选中任务节点：编辑 ReAct 单元——基础字段 / 步骤序列 / 循环退出条件 / 前提条件 / 异常处理
+ * - 选中连线：编辑 kind 与类型化条件
  * - 内容为人工填写的自由文本；修改经 mutate 包装即时生效并纳入撤销
  */
 
@@ -19,7 +22,7 @@ const selection = useSelection()
 
 /** cell.data 非响应式：以版本号驱动重算（change:data 事件） */
 const dataVersion = ref(0)
-/** 面板自身写入期间跳过本地行状态回灌（避免打断正在编辑的参数行） */
+/** 面板自身写入期间跳过草稿回灌（避免打断正在编辑的步骤/参数行） */
 let internalWrite = false
 
 const cell = computed<Cell | null>(() => {
@@ -27,19 +30,6 @@ const cell = computed<Cell | null>(() => {
   const snap = selection.value
   if (!rt || !snap) return null
   return (rt.graph.getCellById(snap.cellId) as Cell | undefined) ?? null
-})
-
-const cellKindLabel = computed(() => {
-  const current = cell.value
-  if (!current) return ''
-  if (current.isNode()) {
-    try {
-      return `节点 · ${NODE_TYPE_LABELS[requireNodeType(current as Node)]}`
-    } catch {
-      return '节点'
-    }
-  }
-  return `连线 · ${EDGE_KIND_LABELS[edgeData.value?.kind ?? 'sequence']}`
 })
 
 const nodeType = computed(() => {
@@ -63,37 +53,31 @@ const edgeData = computed(() => {
   void dataVersion.value
   const current = cell.value
   if (!current || current.isNode()) return null
-  const data = (current as Edge).getData<{ kind?: EdgeKind; condition?: ExitCondition | null }>()
-  return { kind: data?.kind ?? 'sequence', condition: data?.condition ?? null }
+  return {
+    kind: readEdgeKind(current as Edge),
+    condition: readEdgeCondition(current as Edge),
+  }
 })
 
-// ---- 各类型的字段读取 ----
+const cellKindLabel = computed(() => {
+  const current = cell.value
+  if (!current) return ''
+  if (current.isNode()) {
+    return nodeType.value ? `节点 · ${NODE_TYPE_LABELS[nodeType.value]}` : '节点'
+  }
+  return `连线 · ${EDGE_KIND_LABELS[edgeData.value?.kind ?? 'success']}`
+})
+
+// ---- 基础读取 ----
 
 function startData(): NodeDataMap['start'] | null {
   return nodeType.value === 'start' ? ((nodeData.value as NodeDataMap['start'] | null) ?? null) : null
 }
-function thoughtData(): NodeDataMap['thought'] | null {
-  return nodeType.value === 'thought'
-    ? ((nodeData.value as NodeDataMap['thought'] | null) ?? null)
-    : null
-}
-function actionData(): NodeDataMap['action'] | null {
-  return nodeType.value === 'action'
-    ? ((nodeData.value as NodeDataMap['action'] | null) ?? null)
-    : null
-}
-function observationData(): NodeDataMap['observation'] | null {
-  return nodeType.value === 'observation'
-    ? ((nodeData.value as NodeDataMap['observation'] | null) ?? null)
-    : null
-}
-function decisionData(): NodeDataMap['decision'] | null {
-  return nodeType.value === 'decision'
-    ? ((nodeData.value as NodeDataMap['decision'] | null) ?? null)
-    : null
-}
 function finalData(): NodeDataMap['final'] | null {
   return nodeType.value === 'final' ? ((nodeData.value as NodeDataMap['final'] | null) ?? null) : null
+}
+function taskData(): NodeDataMap['task'] | null {
+  return nodeType.value === 'task' ? ((nodeData.value as NodeDataMap['task'] | null) ?? null) : null
 }
 
 // ---- 写回（统一 mutate 包装，纳入撤销） ----
@@ -127,29 +111,68 @@ function writeEdge(next: { kind: EdgeKind; condition: ExitCondition | null }): v
   }
 }
 
-function setGoal(value: string): void {
+function setStartGoal(value: string): void {
   writeNodeData({ goal: value })
 }
-function setThoughtContent(value: string): void {
-  writeNodeData({ content: value })
-}
-function setObservationContent(value: string): void {
-  writeNodeData({ content: value })
-}
-function setCriteria(value: string): void {
-  writeNodeData({ criteria: value })
-}
-function setAnswer(value: string): void {
+function setFinalAnswer(value: string): void {
   writeNodeData({ answer: value })
 }
-function setToolName(value: string): void {
-  const tool = actionData()?.tool ?? { name: '', params: {} }
-  writeNodeData({ tool: { ...tool, name: value } })
+
+// ---- 任务基础字段 ----
+
+function setTaskField(field: 'name' | 'goal' | 'input' | 'precondition', value: string): void {
+  writeNodeData({ [field]: value })
 }
 
-// ---- 工具参数：键值对行编辑 ----
+function setFailureField(field: 'reflection' | 'replan', value: string): void {
+  const onFailure = taskData()?.onFailure ?? { reflection: '', replan: '', maxRetries: 3 }
+  writeNodeData({ onFailure: { ...onFailure, [field]: value } })
+}
 
-const paramRows = ref<Array<{ key: string; value: string }>>([])
+function setMaxRetries(raw: string): void {
+  const value = Number(raw)
+  if (!Number.isFinite(value) || value < 0) return
+  const onFailure = taskData()?.onFailure ?? { reflection: '', replan: '', maxRetries: 3 }
+  writeNodeData({ onFailure: { ...onFailure, maxRetries: value } })
+}
+
+// ---- 循环退出条件（直接写数据即可：控件为选择/数字，无输入焦点问题） ----
+
+function exitConditions(): ExitCondition[] {
+  return taskData()?.loop.exitConditions ?? []
+}
+
+function addExitCondition(): void {
+  writeNodeData({ loop: { exitConditions: [...exitConditions(), { type: 'goal_achieved' }] } })
+}
+
+function updateExitCondition(index: number, condition: ExitCondition | null): void {
+  if (!condition) return
+  const next = exitConditions().slice()
+  next[index] = condition
+  writeNodeData({ loop: { exitConditions: next } })
+}
+
+function removeExitCondition(index: number): void {
+  const next = exitConditions().slice()
+  next.splice(index, 1)
+  writeNodeData({ loop: { exitConditions: next } })
+}
+
+// ---- 步骤序列：本地草稿（保持输入行身份），提交时序列化回数据 ----
+
+interface ActionDraft {
+  name: string
+  paramRows: Array<{ key: string; value: string }>
+}
+interface StepDraft {
+  id: string
+  thought: string
+  actions: ActionDraft[]
+  observation: string
+}
+
+const stepDrafts = ref<StepDraft[]>([])
 
 function valueToString(value: unknown): string {
   if (value === null || value === undefined) return ''
@@ -161,97 +184,98 @@ function valueToString(value: unknown): string {
   }
 }
 
-function syncParamRows(): void {
-  const params = actionData()?.tool?.params ?? {}
-  paramRows.value = Object.entries(params).map(([key, value]) => ({
-    key,
-    value: valueToString(value),
+function syncStepDrafts(): void {
+  const steps: ReactStep[] = taskData()?.steps ?? []
+  stepDrafts.value = steps.map((step) => ({
+    id: step.id,
+    thought: step.thought,
+    observation: step.observation,
+    actions: step.actions.map((action) => ({
+      name: action.name,
+      paramRows: Object.entries(action.params).map(([key, value]) => ({
+        key,
+        value: valueToString(value),
+      })),
+    })),
   }))
 }
 
-function commitParamRows(): void {
-  const params: Record<string, unknown> = {}
-  for (const row of paramRows.value) {
-    const key = row.key.trim()
-    if (key) params[key] = row.value
-  }
-  const tool = actionData()?.tool ?? { name: '', params: {} }
-  writeNodeData({ tool: { ...tool, params } })
+function commitStepDrafts(): void {
+  const steps: ReactStep[] = stepDrafts.value.map((draft) => ({
+    id: draft.id,
+    thought: draft.thought,
+    observation: draft.observation,
+    actions: draft.actions.map((action) => {
+      const params: Record<string, unknown> = {}
+      for (const row of action.paramRows) {
+        const key = row.key.trim()
+        if (key) params[key] = row.value
+      }
+      return { name: action.name, params }
+    }),
+  }))
+  writeNodeData({ steps })
 }
 
-function addParamRow(): void {
-  paramRows.value.push({ key: '', value: '' })
+function addStep(): void {
+  stepDrafts.value.push({ id: createStepId(), thought: '', actions: [], observation: '' })
+  commitStepDrafts()
 }
 
-function removeParamRow(index: number): void {
-  paramRows.value.splice(index, 1)
-  commitParamRows()
+function removeStep(index: number): void {
+  stepDrafts.value.splice(index, 1)
+  commitStepDrafts()
 }
 
-// ---- 边：kind 与类型化退出条件编辑 ----
-
-const CONDITION_TYPES: readonly ConditionType[] = [
-  'goal_achieved',
-  'max_iterations',
-  'timeout',
-  'budget',
-  'error',
-  'human_interrupt',
-  'custom',
-]
-
-function defaultConditionFor(type: ConditionType): ExitCondition {
-  switch (type) {
-    case 'goal_achieved':
-      return { type: 'goal_achieved' }
-    case 'max_iterations':
-      return { type: 'max_iterations', params: { max: 5 } }
-    case 'timeout':
-      return { type: 'timeout', params: { seconds: 30 } }
-    case 'budget':
-      return { type: 'budget', params: { tokens: 100000 } }
-    case 'error':
-      return { type: 'error' }
-    case 'human_interrupt':
-      return { type: 'human_interrupt' }
-    case 'custom':
-      return { type: 'custom', text: '' }
-  }
+function moveStep(index: number, delta: -1 | 1): void {
+  const target = index + delta
+  if (target < 0 || target >= stepDrafts.value.length) return
+  const [moved] = stepDrafts.value.splice(index, 1)
+  stepDrafts.value.splice(target, 0, moved!)
+  commitStepDrafts()
 }
+
+function addAction(stepIndex: number): void {
+  stepDrafts.value[stepIndex]?.actions.push({ name: '', paramRows: [] })
+  commitStepDrafts()
+}
+
+function removeAction(stepIndex: number, actionIndex: number): void {
+  stepDrafts.value[stepIndex]?.actions.splice(actionIndex, 1)
+  commitStepDrafts()
+}
+
+function addParamRow(stepIndex: number, actionIndex: number): void {
+  stepDrafts.value[stepIndex]?.actions[actionIndex]?.paramRows.push({ key: '', value: '' })
+}
+
+function removeParamRow(stepIndex: number, actionIndex: number, rowIndex: number): void {
+  stepDrafts.value[stepIndex]?.actions[actionIndex]?.paramRows.splice(rowIndex, 1)
+  commitStepDrafts()
+}
+
+// ---- 连线编辑 ----
 
 function setEdgeKind(kind: EdgeKind): void {
   const data = edgeData.value
   if (!data || data.kind === kind) return
-  writeEdge({ kind, condition: kind === 'exit' ? data.condition : null })
+  writeEdge({ kind, condition: data.condition })
 }
 
-function setConditionType(type: ConditionType | ''): void {
-  if (!type) {
-    writeEdge({ kind: 'exit', condition: null })
-    return
-  }
-  writeEdge({ kind: 'exit', condition: defaultConditionFor(type) })
+function setEdgeCondition(condition: ExitCondition | null): void {
+  const data = edgeData.value
+  if (!data) return
+  writeEdge({ kind: data.kind, condition })
 }
 
-function setConditionParam(key: 'max' | 'seconds' | 'tokens', raw: string): void {
-  const condition = edgeData.value?.condition
-  if (!condition) return
-  const value = Number(raw)
-  if (!Number.isFinite(value)) return
-  if (condition.type === 'max_iterations' && key === 'max') {
-    writeEdge({ kind: 'exit', condition: { type: 'max_iterations', params: { max: value } } })
-  } else if (condition.type === 'timeout' && key === 'seconds') {
-    writeEdge({ kind: 'exit', condition: { type: 'timeout', params: { seconds: value } } })
-  } else if (condition.type === 'budget' && key === 'tokens') {
-    writeEdge({ kind: 'exit', condition: { type: 'budget', params: { tokens: value } } })
-  }
-}
-
-function setCustomText(text: string): void {
-  const condition = edgeData.value?.condition
-  if (condition?.type !== 'custom') return
-  writeEdge({ kind: 'exit', condition: { type: 'custom', text } })
-}
+const edgeSourceIsStart = computed(() => {
+  void dataVersion.value
+  const current = cell.value
+  const rt = runtime.value
+  if (!current || current.isNode() || !rt) return false
+  const source = rt.graph.getCellById((current as Edge).getSourceCellId())
+  return source?.isNode() === true && (source as Node).shape === 'flow-start'
+})
 
 // ---- 订阅：cell 数据变更（含外部撤销/重做） ----
 
@@ -260,10 +284,10 @@ watch(
   (current) => {
     const bump = (): void => {
       dataVersion.value += 1
-      if (!internalWrite) syncParamRows()
+      if (!internalWrite) syncStepDrafts()
     }
     current?.on('change:data', bump)
-    syncParamRows()
+    syncStepDrafts()
     return () => {
       current?.off('change:data', bump)
     }
@@ -282,117 +306,241 @@ watch(
       <!-- start -->
       <label v-if="nodeType === 'start'" class="property-panel__field">
         <span class="property-panel__label">
-          任务目标<span class="property-panel__required">必填</span>
+          全局目标<span class="property-panel__required">必填</span>
         </span>
         <textarea
           class="property-panel__textarea"
           rows="2"
-          placeholder="本流程要达成的目标"
+          placeholder="整个任务流要达成什么"
           :value="startData()?.goal ?? ''"
-          @input="setGoal(($event.target as HTMLTextAreaElement).value)"
+          @input="setStartGoal(($event.target as HTMLTextAreaElement).value)"
         ></textarea>
-      </label>
-
-      <!-- thought -->
-      <label v-else-if="nodeType === 'thought'" class="property-panel__field">
-        <span class="property-panel__label">推理内容</span>
-        <textarea
-          class="property-panel__textarea"
-          rows="4"
-          placeholder="Agent 此刻的推理：现在该做什么"
-          :value="thoughtData()?.content ?? ''"
-          @input="setThoughtContent(($event.target as HTMLTextAreaElement).value)"
-        ></textarea>
-      </label>
-
-      <!-- action -->
-      <template v-else-if="nodeType === 'action'">
-        <label class="property-panel__field">
-          <span class="property-panel__label">
-            工具名<span class="property-panel__required">必填</span>
-          </span>
-          <input
-            class="property-panel__input"
-            type="text"
-            placeholder="如 get_weather"
-            :value="actionData()?.tool?.name ?? ''"
-            @input="setToolName(($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <div class="property-panel__field">
-          <span class="property-panel__label">工具参数</span>
-          <div v-for="(row, index) in paramRows" :key="index" class="property-panel__param-row">
-            <input
-              class="property-panel__input property-panel__input--key"
-              type="text"
-              placeholder="参数名"
-              :value="row.key"
-              @input="
-                row.key = ($event.target as HTMLInputElement).value;
-                commitParamRows()
-              "
-            />
-            <input
-              class="property-panel__input"
-              type="text"
-              placeholder="值（自由填写）"
-              :value="row.value"
-              @input="
-                row.value = ($event.target as HTMLInputElement).value;
-                commitParamRows()
-              "
-            />
-            <button
-              type="button"
-              class="property-panel__icon-btn"
-              title="删除该参数"
-              @click="removeParamRow(index)"
-            >
-              ×
-            </button>
-          </div>
-          <button type="button" class="property-panel__add-btn" @click="addParamRow">
-            + 添加参数
-          </button>
-        </div>
-      </template>
-
-      <!-- observation -->
-      <label v-else-if="nodeType === 'observation'" class="property-panel__field">
-        <span class="property-panel__label">观察结果</span>
-        <textarea
-          class="property-panel__textarea"
-          rows="3"
-          placeholder="工具返回的结果"
-          :value="observationData()?.content ?? ''"
-          @input="setObservationContent(($event.target as HTMLTextAreaElement).value)"
-        ></textarea>
-      </label>
-
-      <!-- decision -->
-      <label v-else-if="nodeType === 'decision'" class="property-panel__field">
-        <span class="property-panel__label">判断依据（可选）</span>
-        <textarea
-          class="property-panel__textarea"
-          rows="2"
-          placeholder="如：资料是否足够"
-          :value="decisionData()?.criteria ?? ''"
-          @input="setCriteria(($event.target as HTMLTextAreaElement).value)"
-        ></textarea>
-        <span class="property-panel__hint">退出条件在连线上设置：选中 exit 出边后编辑条件</span>
       </label>
 
       <!-- final -->
       <label v-else-if="nodeType === 'final'" class="property-panel__field">
-        <span class="property-panel__label">最终答案</span>
+        <span class="property-panel__label">最终产出</span>
         <textarea
           class="property-panel__textarea"
           rows="3"
           placeholder="流程结束时的输出"
           :value="finalData()?.answer ?? ''"
-          @input="setAnswer(($event.target as HTMLTextAreaElement).value)"
+          @input="setFinalAnswer(($event.target as HTMLTextAreaElement).value)"
         ></textarea>
       </label>
+
+      <!-- task：ReAct 单元 -->
+      <template v-else-if="nodeType === 'task'">
+        <label class="property-panel__field">
+          <span class="property-panel__label">
+            任务名<span class="property-panel__required">必填</span>
+          </span>
+          <input
+            class="property-panel__input"
+            type="text"
+            placeholder="如：查询天气"
+            :value="taskData()?.name ?? ''"
+            @input="setTaskField('name', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+
+        <label class="property-panel__field">
+          <span class="property-panel__label">
+            任务目标<span class="property-panel__required">必填</span>
+          </span>
+          <textarea
+            class="property-panel__textarea"
+            rows="2"
+            placeholder="本任务要达成什么"
+            :value="taskData()?.goal ?? ''"
+            @input="setTaskField('goal', ($event.target as HTMLTextAreaElement).value)"
+          ></textarea>
+        </label>
+
+        <label class="property-panel__field">
+          <span class="property-panel__label">输入</span>
+          <textarea
+            class="property-panel__textarea"
+            rows="2"
+            placeholder="从哪来 / 是什么（如：上一环节的产出）"
+            :value="taskData()?.input ?? ''"
+            @input="setTaskField('input', ($event.target as HTMLTextAreaElement).value)"
+          ></textarea>
+        </label>
+
+        <div class="property-panel__section">ReAct 步骤（循环体）</div>
+
+        <div v-for="(step, stepIndex) in stepDrafts" :key="step.id" class="property-panel__step">
+          <div class="property-panel__step-head">
+            <span>步骤 {{ stepIndex + 1 }}</span>
+            <span class="property-panel__step-actions">
+              <button type="button" title="上移" @click="moveStep(stepIndex, -1)">↑</button>
+              <button type="button" title="下移" @click="moveStep(stepIndex, 1)">↓</button>
+              <button type="button" title="删除步骤" @click="removeStep(stepIndex)">×</button>
+            </span>
+          </div>
+
+          <label class="property-panel__field">
+            <span class="property-panel__label">思考</span>
+            <textarea
+              class="property-panel__textarea"
+              rows="2"
+              placeholder="这一步判断/推理什么"
+              :value="step.thought"
+              @input="
+                step.thought = ($event.target as HTMLTextAreaElement).value;
+                commitStepDrafts()
+              "
+            ></textarea>
+          </label>
+
+          <div class="property-panel__field">
+            <span class="property-panel__label">行动</span>
+            <div
+              v-for="(action, actionIndex) in step.actions"
+              :key="actionIndex"
+              class="property-panel__action"
+            >
+              <div class="property-panel__action-head">
+                <input
+                  class="property-panel__input"
+                  type="text"
+                  placeholder="动作 / 工具名"
+                  :value="action.name"
+                  @input="
+                    action.name = ($event.target as HTMLInputElement).value;
+                    commitStepDrafts()
+                  "
+                />
+                <button type="button" title="删除动作" @click="removeAction(stepIndex, actionIndex)">
+                  ×
+                </button>
+              </div>
+              <div
+                v-for="(row, rowIndex) in action.paramRows"
+                :key="rowIndex"
+                class="property-panel__param-row"
+              >
+                <input
+                  class="property-panel__input property-panel__input--key"
+                  type="text"
+                  placeholder="参数名"
+                  :value="row.key"
+                  @input="
+                    row.key = ($event.target as HTMLInputElement).value;
+                    commitStepDrafts()
+                  "
+                />
+                <input
+                  class="property-panel__input"
+                  type="text"
+                  placeholder="值（自由填写）"
+                  :value="row.value"
+                  @input="
+                    row.value = ($event.target as HTMLInputElement).value;
+                    commitStepDrafts()
+                  "
+                />
+                <button
+                  type="button"
+                  title="删除参数"
+                  @click="removeParamRow(stepIndex, actionIndex, rowIndex)"
+                >
+                  ×
+                </button>
+              </div>
+              <button
+                type="button"
+                class="property-panel__add-btn"
+                @click="addParamRow(stepIndex, actionIndex)"
+              >
+                + 参数
+              </button>
+            </div>
+            <button type="button" class="property-panel__add-btn" @click="addAction(stepIndex)">
+              + 添加动作
+            </button>
+          </div>
+
+          <label class="property-panel__field">
+            <span class="property-panel__label">观察</span>
+            <textarea
+              class="property-panel__textarea"
+              rows="2"
+              placeholder="预期返回 / 结果"
+              :value="step.observation"
+              @input="
+                step.observation = ($event.target as HTMLTextAreaElement).value;
+                commitStepDrafts()
+              "
+            ></textarea>
+          </label>
+        </div>
+
+        <button type="button" class="property-panel__add-btn" @click="addStep">+ 添加步骤</button>
+
+        <div class="property-panel__section">循环退出条件</div>
+        <div
+          v-for="(condition, index) in exitConditions()"
+          :key="index"
+          class="property-panel__condition"
+        >
+          <ConditionEditor
+            :condition="condition"
+            @change="updateExitCondition(index, $event)"
+          />
+          <button type="button" title="删除条件" @click="removeExitCondition(index)">×</button>
+        </div>
+        <button type="button" class="property-panel__add-btn" @click="addExitCondition">
+          + 添加退出条件
+        </button>
+        <span v-if="exitConditions().length === 0" class="property-panel__hint property-panel__hint--warn">
+          未定义循环退出条件，将被校验标记为问题（E3）
+        </span>
+
+        <label class="property-panel__field">
+          <span class="property-panel__label">前提条件（进入下一任务）</span>
+          <textarea
+            class="property-panel__textarea"
+            rows="2"
+            placeholder="如何判断可以进入下一任务"
+            :value="taskData()?.precondition ?? ''"
+            @input="setTaskField('precondition', ($event.target as HTMLTextAreaElement).value)"
+          ></textarea>
+        </label>
+
+        <div class="property-panel__section">异常处理</div>
+        <label class="property-panel__field">
+          <span class="property-panel__label">反思（出问题如何分析）</span>
+          <textarea
+            class="property-panel__textarea"
+            rows="2"
+            placeholder="如：分析失败原因——数据源？参数？"
+            :value="taskData()?.onFailure.reflection ?? ''"
+            @input="setFailureField('reflection', ($event.target as HTMLTextAreaElement).value)"
+          ></textarea>
+        </label>
+        <label class="property-panel__field">
+          <span class="property-panel__label">重规划（如何调整）</span>
+          <textarea
+            class="property-panel__textarea"
+            rows="2"
+            placeholder="如：调整策略或改用备用方案后重试"
+            :value="taskData()?.onFailure.replan ?? ''"
+            @input="setFailureField('replan', ($event.target as HTMLTextAreaElement).value)"
+          ></textarea>
+        </label>
+        <label class="property-panel__field">
+          <span class="property-panel__label">重试上限</span>
+          <input
+            class="property-panel__input"
+            type="number"
+            min="0"
+            :value="taskData()?.onFailure.maxRetries ?? 0"
+            @input="setMaxRetries(($event.target as HTMLInputElement).value)"
+          />
+        </label>
+      </template>
 
       <!-- edge -->
       <template v-else-if="edgeData">
@@ -409,76 +557,19 @@ watch(
           </select>
         </label>
 
-        <template v-if="edgeData.kind === 'exit'">
-          <label class="property-panel__field">
-            <span class="property-panel__label">
-              退出条件<span class="property-panel__required">必填</span>
-            </span>
-            <select
-              class="property-panel__select"
-              :value="edgeData.condition?.type ?? ''"
-              @change="
-                setConditionType(($event.target as HTMLSelectElement).value as ConditionType | '')
-              "
-            >
-              <option value="" disabled>请选择条件类型</option>
-              <option v-for="type in CONDITION_TYPES" :key="type" :value="type">
-                {{ CONDITION_TYPE_LABELS[type] }}
-              </option>
-            </select>
-          </label>
+        <div class="property-panel__field">
+          <span class="property-panel__label">
+            {{ edgeData.kind === 'success' ? '前提条件' : '异常条件（可选）' }}
+          </span>
+          <ConditionEditor :condition="edgeData.condition" @change="setEdgeCondition" />
+        </div>
 
-          <label
-            v-if="edgeData.condition?.type === 'max_iterations'"
-            class="property-panel__field"
-          >
-            <span class="property-panel__label">最大迭代次数</span>
-            <input
-              class="property-panel__input"
-              type="number"
-              min="1"
-              :value="edgeData.condition.params.max"
-              @input="setConditionParam('max', ($event.target as HTMLInputElement).value)"
-            />
-          </label>
-
-          <label v-else-if="edgeData.condition?.type === 'timeout'" class="property-panel__field">
-            <span class="property-panel__label">超时时间（秒）</span>
-            <input
-              class="property-panel__input"
-              type="number"
-              min="1"
-              :value="edgeData.condition.params.seconds"
-              @input="setConditionParam('seconds', ($event.target as HTMLInputElement).value)"
-            />
-          </label>
-
-          <label v-else-if="edgeData.condition?.type === 'budget'" class="property-panel__field">
-            <span class="property-panel__label">预算（tokens）</span>
-            <input
-              class="property-panel__input"
-              type="number"
-              min="1"
-              :value="edgeData.condition.params.tokens"
-              @input="setConditionParam('tokens', ($event.target as HTMLInputElement).value)"
-            />
-          </label>
-
-          <label v-else-if="edgeData.condition?.type === 'custom'" class="property-panel__field">
-            <span class="property-panel__label">自定义条件</span>
-            <textarea
-              class="property-panel__textarea"
-              rows="2"
-              placeholder="用文字描述退出条件"
-              :value="edgeData.condition.text"
-              @input="setCustomText(($event.target as HTMLTextAreaElement).value)"
-            ></textarea>
-          </label>
-
-          <p v-if="!edgeData.condition" class="property-panel__hint property-panel__hint--warn">
-            该退出边尚未设置条件，将被校验标记为问题（E4）
-          </p>
-        </template>
+        <p
+          v-if="edgeData.kind === 'success' && !edgeData.condition && !edgeSourceIsStart"
+          class="property-panel__hint property-panel__hint--warn"
+        >
+          该成功转移尚未设置前提条件，将被校验标记为问题（E5）
+        </p>
       </template>
     </template>
   </div>
@@ -488,7 +579,7 @@ watch(
 .property-panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   padding: 12px;
 }
 
@@ -505,6 +596,15 @@ watch(
   font-weight: 600;
   color: var(--color-text-secondary);
   border-bottom: 1px solid var(--color-border);
+}
+
+.property-panel__section {
+  margin-top: 4px;
+  padding-top: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  border-top: 1px dashed var(--color-border);
 }
 
 .property-panel__field {
@@ -553,6 +653,70 @@ watch(
   outline: none;
 }
 
+.property-panel__step {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: #f8fafc;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.property-panel__step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.property-panel__step-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.property-panel__step-actions button,
+.property-panel__action-head button,
+.property-panel__param-row button,
+.property-panel__condition > button {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+}
+
+.property-panel__step-actions button:hover,
+.property-panel__action-head button:hover,
+.property-panel__param-row button:hover,
+.property-panel__condition > button:hover {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
+.property-panel__action {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid #e6eaf0;
+  border-radius: 6px;
+}
+
+.property-panel__action-head {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
 .property-panel__param-row {
   display: flex;
   gap: 4px;
@@ -564,22 +728,19 @@ watch(
   flex-shrink: 0;
 }
 
-.property-panel__icon-btn {
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  font-size: 13px;
-  line-height: 1;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  background: none;
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
+.property-panel__condition {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
 }
 
-.property-panel__icon-btn:hover {
-  color: var(--color-error);
-  border-color: var(--color-error);
+.property-panel__condition > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.property-panel__condition > button {
+  margin-top: 2px;
 }
 
 .property-panel__add-btn {

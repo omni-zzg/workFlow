@@ -86,13 +86,13 @@
 
 > 背景：经用户确认，模型由"全局 ReAct 循环"修正为"画布=任务流，每个任务节点=一个完整 ReAct 单元"。本组按修订后的 specs/design 重构此前按旧模型完成的部分。
 
-- [ ] 12.1 重写 schema：start/task/final 三类节点（task 含 name/goal/input/steps/loop.exitConditions/precondition/onFailure）、success/failure 两类边、类型化条件复用（v1 pre-release 直接重定义），验证：`pnpm build` 类型检查通过
-- [ ] 12.2 更新转换与导入校验：往返一致覆盖多步骤/多退出条件/failure 边/custom 条件；旧模型节点（type="thought"）按未知类型拒绝并给位置，验证：schema 单测全绿
-- [ ] 12.3 重写校验规则（E1-E8 / W1-W7：逐节点 ReAct 必备要素 + 顶层完整性 + 失败回退环成功出口），验证：对照 specs/flow-validation 每规则正反例单测 + 任务流模板零问题
-- [ ] 12.4 重做节点视觉与工厂：任务卡片常驻 ReAct 骨架（输入/步骤摘要/退出条件徽标/前提/失败摘要，空态占位）、start/final 胶囊、调色板三类、任务流模板（含 failure 边），验证：卡片骨架渲染与模板结构断言测试通过
-- [ ] 12.5 调整画布交互：新连线默认 success、向后指自动识别 failure（dryrun 不占撤销步）、重复判定按 (source,target,kind)，验证：冒烟测试（回边识别/重复判定/同向不同 kind 允许）通过
-- [ ] 12.6 重写属性面板：任务表单（基础字段/步骤序列编辑器/循环退出条件编辑器/异常处理）+ 连线表单（kind 与条件），验证：面板场景测试改写并全绿（含退出条件编辑与 failure 边场景）
-- [ ] 12.7 更新集成与端到端测试：问题面板场景与 E2E 链路按新模型改写（新建→插入任务流模板→改步骤→清空退出条件出 E3→补回→导出→回导），验证：全量 `pnpm test` + `pnpm build` 通过
+- [x] 12.1 重写 schema：start/task/final 三类节点（task 含 name/goal/input/steps/loop.exitConditions/precondition/onFailure）、success/failure 两类边、类型化条件复用（v1 pre-release 直接重定义），验证：`pnpm build` 类型检查通过
+- [x] 12.2 更新转换与导入校验：往返一致覆盖多步骤/多退出条件/failure 边/custom 条件；旧模型节点（type="thought"）按未知类型拒绝并给位置，验证：schema 单测全绿
+- [x] 12.3 重写校验规则（E1-E8 / W1-W7：逐节点 ReAct 必备要素 + 顶层完整性 + 失败回退环成功出口），验证：对照 specs/flow-validation 每规则正反例单测 + 任务流模板零问题
+- [x] 12.4 重做节点视觉与工厂：任务卡片常驻 ReAct 骨架（输入/步骤摘要/退出条件徽标/前提/失败摘要，空态占位）、start/final 胶囊、调色板三类、任务流模板（含 failure 边），验证：卡片骨架渲染与模板结构断言测试通过
+- [x] 12.5 调整画布交互：新连线默认 success、向后指自动识别 failure（dryrun 不占撤销步）、重复判定按 (source,target,kind)，验证：冒烟测试（回边识别/重复判定/同向不同 kind 允许）通过
+- [x] 12.6 重写属性面板：任务表单（基础字段/步骤序列编辑器/循环退出条件编辑器/异常处理）+ 连线表单（kind 与条件），验证：面板场景测试改写并全绿（含退出条件编辑与 failure 边场景）
+- [x] 12.7 更新集成与端到端测试：问题面板场景与 E2E 链路按新模型改写（新建→插入任务流模板→改步骤→清空退出条件出 E3→补回→导出→回导），验证：全量 `pnpm test` + `pnpm build` 通过
 - [ ] 12.8 复核 AGENTS.md/proposal/design/specs 与实现一致性并提交，验证：`openspec validate` 通过且 `git status --porcelain` 为空
 
 ## Workflow follow-up

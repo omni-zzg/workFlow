@@ -37,8 +37,9 @@ function shouldRecordHistory(event: string, args: unknown): boolean {
 }
 
 /**
- * 回边自动识别（spec: flow-canvas-editing）：用户新连线若指向源节点的祖先则标记为 loop。
- * sequence 为缺省值（无需写入）；推断写入使用 X6 的 dryrun 选项，不占独立撤销步骤。
+ * 回边自动识别（spec: flow-canvas-editing）：用户新连线若指向源节点的祖先（构成环），
+ * 自动标记为 failure（重试/回退路径）；success 为缺省值（无需写入）。
+ * 推断写入使用 X6 的 dryrun 选项，不占独立撤销步骤。
  */
 function inferKindForNewEdge(graph: Graph, edge: Edge): void {
   const data = edge.getData<EdgeCellData>()
@@ -49,9 +50,9 @@ function inferKindForNewEdge(graph: Graph, edge: Edge): void {
   if (!sourceId || !targetId) return
 
   const kind = inferEdgeKind(graph, sourceId, targetId)
-  if (kind === 'sequence') return
+  if (kind === 'success') return
 
-  edge.setData({ kind }, { dryrun: true })
+  edge.setData({ kind, condition: null }, { dryrun: true })
 }
 
 /** 创建并配置图实例（插件、交互、快捷键）；调用方负责 dispose */
@@ -86,8 +87,10 @@ export function createGraph(container: HTMLElement, options: CreateGraphOptions 
       validateConnection: ({ sourceCell, targetCell, edge }) => {
         if (!sourceCell || !targetCell) return false
         if (sourceCell.id === targetCell.id) return false
-        if (isDuplicateConnection(graph, sourceCell.id, targetCell.id, edge?.id)) {
-          options.onConnectionRejected?.('已存在同方向的连线')
+        // 按"新边将获得的 kind"判重，允许同向不同 kind（如 success 与 failure 并存）
+        const prospectiveKind = inferEdgeKind(graph, sourceCell.id, targetCell.id)
+        if (isDuplicateConnection(graph, sourceCell.id, targetCell.id, prospectiveKind, edge?.id)) {
+          options.onConnectionRejected?.('已存在同方向的同类连线')
           return false
         }
         return true

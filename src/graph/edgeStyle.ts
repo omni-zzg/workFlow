@@ -3,14 +3,14 @@ import type { Edge } from '@antv/x6'
 import { conditionSummary } from '@/schema'
 import type { EdgeKind, ExitCondition } from '@/schema'
 
-/** 边在 X6 cell.data 中的存储结构（与 schema 的 kind/data 对应；kind 缺省视为 sequence） */
+/** 边在 X6 cell.data 中的存储结构（与 schema 的 kind/data 对应；kind 缺省视为 success） */
 export interface EdgeCellData {
   kind?: EdgeKind
   condition?: ExitCondition | null
 }
 
 export function readEdgeKind(edge: Edge): EdgeKind {
-  return edge.getData<EdgeCellData>()?.kind ?? 'sequence'
+  return edge.getData<EdgeCellData>()?.kind ?? 'success'
 }
 
 export function readEdgeCondition(edge: Edge): ExitCondition | null {
@@ -18,14 +18,13 @@ export function readEdgeCondition(edge: Edge): ExitCondition | null {
 }
 
 const EDGE_COLORS: Record<EdgeKind, string> = {
-  sequence: '#94a3b8',
-  loop: '#8b5cf6',
-  exit: '#10b981',
+  success: '#64748b',
+  failure: '#f97316',
 }
 
 /**
- * 三类边样式与标签（spec: flow-canvas-editing）：
- * sequence 实线灰；loop 虚线紫 + "循环"标签；exit 高亮绿 + 条件摘要标签。
+ * 两类边样式与标签（spec: flow-canvas-editing）：
+ * success 实线青灰 + 前提条件摘要标签（草稿态无标签）；failure 橙色虚线 + 条件摘要或"异常"。
  * 纯展示派生：所有变更后可由 cell.data 重新推导，故不纳入撤销历史。
  */
 export function applyEdgeStyle(edge: Edge): void {
@@ -33,13 +32,16 @@ export function applyEdgeStyle(edge: Edge): void {
   const color = EDGE_COLORS[kind]
 
   edge.attr('line/stroke', color)
-  edge.attr('line/strokeWidth', 1.6)
-  edge.attr('line/strokeDasharray', kind === 'loop' ? '6 4' : null)
-  edge.setRouter({ name: 'manhattan', args: { padding: kind === 'loop' ? 28 : 16 } })
+  edge.attr('line/strokeWidth', 1.7)
+  edge.attr('line/strokeDasharray', kind === 'failure' ? '6 4' : null)
+  edge.setRouter({ name: 'manhattan', args: { padding: kind === 'failure' ? 28 : 16 } })
   edge.setConnector({ name: 'rounded', args: { radius: 8 } })
 
+  const condition = readEdgeCondition(edge)
   const text =
-    kind === 'exit' ? conditionSummary(readEdgeCondition(edge)) : kind === 'loop' ? '循环' : null
+    kind === 'failure'
+      ? (condition ? conditionSummary(condition) : '异常')
+      : (condition ? conditionSummary(condition) : null)
 
   if (text === null) {
     edge.setLabels([])

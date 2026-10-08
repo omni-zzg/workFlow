@@ -91,13 +91,63 @@ body {
   height: 100%;
 }
 
-.flow-node-text {
-  display: block;
+/* 开始/结束胶囊 */
+.flow-capsule {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 6px 18px;
+  overflow: hidden;
+  font-size: 12px;
+  text-align: center;
+  border-radius: 999px;
+  user-select: none;
 }
 
-.flow-node-placeholder {
+.flow-capsule__title {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.flow-capsule__body {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.flow-capsule__body--empty {
   color: #94a3b8;
   font-style: italic;
+}
+
+.flow-capsule--start {
+  background: #ecfdf5;
+  border: 1.5px solid #34d399;
+}
+
+.flow-capsule--start .flow-capsule__title {
+  color: #047857;
+}
+
+.flow-capsule--start .flow-capsule__body {
+  color: #065f46;
+}
+
+.flow-capsule--final {
+  background: #ecfdf5;
+  border: 3px solid #059669;
+}
+
+.flow-capsule--final .flow-capsule__title,
+.flow-capsule--final .flow-capsule__body {
+  color: #065f46;
+}
+
+.flow-capsule--final .flow-capsule__body {
+  font-weight: 600;
 }
 
 /* ---- cell 态标注（CellStateController 在 cellView 容器上切换类名） ---- */

@@ -4,7 +4,6 @@ import type { Graph, Node } from '@antv/x6'
 
 import type { NodeDataMap } from '@/schema'
 
-import NodeFrame from './NodeFrame.vue'
 import { useNodeData } from './useNodeData'
 
 const props = defineProps<{ node: Node; graph: Graph }>()
@@ -14,9 +13,11 @@ const goal = computed(() => (data.value.goal ?? '').trim())
 
 <template>
   <div class="flow-node">
-    <NodeFrame node-type="start" title="开始">
-      <span v-if="goal" class="flow-node-text">{{ goal }}</span>
-      <span v-else class="flow-node-placeholder">未填写目标</span>
-    </NodeFrame>
+    <div class="flow-capsule flow-capsule--start">
+      <span class="flow-capsule__title">开始 · 全局目标</span>
+      <span class="flow-capsule__body" :class="{ 'flow-capsule__body--empty': !goal }">
+        {{ goal || '未填写全局目标' }}
+      </span>
+    </div>
   </div>
 </template>

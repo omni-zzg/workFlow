@@ -30,13 +30,18 @@ describe('导入导出', () => {
     insertRawGraph(graph, buildReactTemplateCells())
     await flush()
 
-    const text = exportFlowJson(graph, { name: '测试流程' })
+    const text = exportFlowJson(graph, { name: '测试任务流' })
     const parsed = JSON.parse(text) as Record<string, unknown>
     expect(Object.keys(parsed).sort()).toEqual(['edges', 'meta', 'nodes', 'version'])
     expect(parsed.version).toBe(1)
 
     const firstNode = (parsed.nodes as Array<Record<string, unknown>>)[0]!
     expect(Object.keys(firstNode).sort()).toEqual(['data', 'id', 'position', 'type'])
+
+    // 边仅有 success / failure 两类，且携带 data.condition
+    const edges = parsed.edges as Array<{ kind: string; data: { condition: unknown } }>
+    expect(edges.every((edge) => edge.kind === 'success' || edge.kind === 'failure')).toBe(true)
+    expect(edges.every((edge) => 'condition' in edge.data)).toBe(true)
 
     // 不含校验结果等派生字段
     expect(text).not.toContain('severity')
@@ -50,14 +55,14 @@ describe('导入导出', () => {
     const source = makeTestGraph().graph
     insertRawGraph(source, buildReactTemplateCells())
     await flush()
-    const text1 = exportFlowJson(source, { name: '往返流程' })
+    const text1 = exportFlowJson(source, { name: '往返任务流' })
 
     const target = makeTestGraph().graph
     const result = importFlowText(target, text1)
     expect(result.ok).toBe(true)
     await flush()
 
-    const text2 = exportFlowJson(target, { name: '往返流程' })
+    const text2 = exportFlowJson(target, { name: '往返任务流' })
     expect(JSON.parse(text2)).toEqual(JSON.parse(text1))
 
     source.dispose()
@@ -78,11 +83,11 @@ describe('导入导出', () => {
     graph.dispose()
   })
 
-  it('导入合法文件：完整还原（位置/kind/条件）并清空撤销栈', async () => {
+  it('导入合法文件：完整还原（位置/步骤/kind/条件）并清空撤销栈', async () => {
     const source = makeTestGraph().graph
     insertRawGraph(source, buildReactTemplateCells())
     await flush()
-    const text = exportFlowJson(source, { name: '还原流程' })
+    const text = exportFlowJson(source, { name: '还原任务流' })
 
     const target = makeTestGraph().graph
     insertRawGraph(target, {
@@ -95,16 +100,19 @@ describe('导入导出', () => {
     expect(result.ok).toBe(true)
     await flush()
 
-    expect(target.getNodes()).toHaveLength(6)
-    expect(target.getEdges()).toHaveLength(6)
+    expect(target.getNodes()).toHaveLength(3)
+    expect(target.getEdges()).toHaveLength(3)
     expect(target.canUndo()).toBe(false) // 撤销栈已清空
 
     const projected = projectRawGraph(target)
-    expect(projected.edges.find((edge) => edge.kind === 'exit')?.condition).toEqual({
-      type: 'goal_achieved',
+    expect(projected.edges.find((edge) => edge.kind === 'failure')?.condition).toEqual({
+      type: 'max_iterations',
+      params: { max: 5 },
     })
     const start = projected.nodes.find((node) => node.nodeType === 'start')
     expect(start?.x).toBe(360)
+    const task = projected.nodes.find((node) => node.nodeType === 'task')
+    expect((task?.data as { steps: unknown[] }).steps).toHaveLength(2)
 
     source.dispose()
     target.dispose()
@@ -149,7 +157,7 @@ describe('导入对话框', () => {
     importButton.click()
     await nextTick()
 
-    expect(graph.getNodes()).toHaveLength(6)
+    expect(graph.getNodes()).toHaveLength(3)
     expect(useDocument().dirty.value).toBe(false) // 导入后视为已保存
     expect(useDocument().meta.value.name).toBe('对话导入')
 

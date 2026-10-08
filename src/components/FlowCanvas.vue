@@ -58,7 +58,7 @@ onBeforeUnmount(() => {
     <div v-if="nodeCount === 0" class="flow-canvas__empty">
       <p class="flow-canvas__empty-text">从左侧拖入节点开始绘制，或</p>
       <button type="button" class="flow-canvas__empty-btn" @click="insertTemplate">
-        插入 ReAct 模板
+        插入任务流模板
       </button>
     </div>
     <transition name="flow-fade">

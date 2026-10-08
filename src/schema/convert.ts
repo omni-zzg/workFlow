@@ -11,7 +11,7 @@ export interface RawGraph {
   meta?: FlowMeta
 }
 
-export const DEFAULT_META: FlowMeta = { name: '未命名流程' }
+export const DEFAULT_META: FlowMeta = { name: '未命名任务流' }
 
 /** 中间形态 -> 持久化格式 */
 export function graphToSchema(graph: RawGraph): FlowSchema {
@@ -25,18 +25,15 @@ export function graphToSchema(graph: RawGraph): FlowSchema {
       }) as FlowNode,
   )
 
-  const edges = graph.edges.map((edge): FlowEdge => {
-    if (edge.kind === 'exit') {
-      return {
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        kind: 'exit',
-        data: { condition: edge.condition ?? null },
-      }
-    }
-    return { id: edge.id, source: edge.source, target: edge.target, kind: edge.kind }
-  })
+  const edges = graph.edges.map(
+    (edge): FlowEdge => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      kind: edge.kind,
+      data: { condition: edge.condition ?? null },
+    }),
+  )
 
   return {
     version: 1,
@@ -59,15 +56,15 @@ export function schemaToCells(schema: FlowSchema): { nodes: RawNode[]; edges: Ra
       }) as RawNode,
   )
 
-  const edges = schema.edges.map((edge): RawEdge => {
-    return {
+  const edges = schema.edges.map(
+    (edge): RawEdge => ({
       id: edge.id,
       source: edge.source,
       target: edge.target,
       kind: edge.kind,
-      condition: edge.kind === 'exit' ? edge.data.condition : null,
-    }
-  })
+      condition: edge.data.condition,
+    }),
+  )
 
   return { nodes, edges }
 }

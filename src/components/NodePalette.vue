@@ -66,7 +66,7 @@ function createAtCenter(type: NodeType): void {
     </button>
     <p class="node-palette__hint">拖拽到画布，或点击创建</p>
     <button type="button" class="node-palette__template" @click="insertTemplate">
-      插入 ReAct 模板
+      插入任务流模板
     </button>
   </div>
 </template>
@@ -117,26 +117,10 @@ function createAtCenter(type: NodeType): void {
   border-radius: 999px;
 }
 
-.node-palette__swatch--thought {
-  background: #eef2ff;
-  border-color: #818cf8;
-  border-style: dashed;
-}
-
-.node-palette__swatch--action {
-  background: #fff7ed;
-  border-color: #fb923c;
-}
-
-.node-palette__swatch--observation {
-  background: #f8fafc;
+.node-palette__swatch--task {
+  background: #fff;
   border-color: #94a3b8;
-}
-
-.node-palette__swatch--decision {
-  background: #fffbeb;
-  border-color: #f59e0b;
-  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  border-radius: 4px;
 }
 
 .node-palette__swatch--final {

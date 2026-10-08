@@ -14,6 +14,7 @@ import type {
 } from '@/schema'
 
 import { applyEdgeStyle, readEdgeCondition, readEdgeKind } from './edgeStyle'
+// readEdgeKind 同时供 project 内部（投影）与 isDuplicateConnection 使用
 import { mutate } from './mutate'
 import { NODE_SIZE_BY_TYPE, NODE_TYPE_BY_SHAPE, SHAPE_BY_NODE_TYPE } from './shapes'
 
@@ -44,13 +45,12 @@ export function projectRawGraph(graph: Graph, meta: FlowMeta = DEFAULT_META): Ra
   })
 
   const edges = graph.getEdges().map((edge): RawEdge => {
-    const kind = readEdgeKind(edge)
     return {
       id: edge.id,
       source: edge.getSourceCellId(),
       target: edge.getTargetCellId(),
-      kind,
-      condition: kind === 'exit' ? readEdgeCondition(edge) : null,
+      kind: readEdgeKind(edge),
+      condition: readEdgeCondition(edge),
     }
   })
 
@@ -103,21 +103,26 @@ export function insertRawGraph(
   })
 }
 
-/** 依据当前图拓扑推断新连线的 kind：目标节点是源节点祖先 => 回边（复用 analysis 纯算法） */
+/**
+ * 依据当前图拓扑推断新连线的 kind：目标节点是源节点祖先 => 回边（复用 analysis 纯算法）。
+ * 回边代表重试/回退路径，自动识别为 failure；其余为 success。
+ */
 export function inferEdgeKind(graph: Graph, sourceId: string, targetId: string): EdgeKind {
   const raw = projectRawGraph(graph)
   const index = buildIndex(raw.nodes, raw.edges)
-  return isAncestor(index, targetId, sourceId) ? 'loop' : 'sequence'
+  return isAncestor(index, targetId, sourceId) ? 'failure' : 'success'
 }
 
 /**
- * 重复连线判定（spec: flow-canvas-editing —— 阻止相同 source 与 target 的重复连线）。
+ * 重复连线判定（spec: flow-canvas-editing —— 阻止相同 source、target 与 kind 的重复连线；
+ * 同向不同 kind——如同时存在 success 与 failure——允许）。
  * excludeEdgeId 用于重连场景：正在调整端点的边不与自己比较。
  */
 export function isDuplicateConnection(
   graph: Graph,
   sourceId: string,
   targetId: string,
+  kind: EdgeKind,
   excludeEdgeId?: string | null,
 ): boolean {
   return graph
@@ -126,6 +131,7 @@ export function isDuplicateConnection(
       (edge) =>
         edge.id !== excludeEdgeId &&
         edge.getSourceCellId() === sourceId &&
-        edge.getTargetCellId() === targetId,
+        edge.getTargetCellId() === targetId &&
+        readEdgeKind(edge) === kind,
     )
 }
