@@ -1,0 +1,5 @@
+allowBuilds:
+  esbuild: true
+  vue-demi: true
+# pnpm 12 起，安装设置位于本文件（不再读 package.json 的 pnpm 字段）
+# 放行必需构建脚本：esbuild（二进制校验）、vue-demi（Vue 版本切换，x6-vue-shape 依赖）
