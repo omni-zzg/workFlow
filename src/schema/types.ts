@@ -61,6 +61,9 @@ export type FlowEdge =
   | { id: string; source: string; target: string; kind: 'loop' }
   | { id: string; source: string; target: string; kind: 'exit'; data: { condition: ExitCondition | null } }
 
+/** 已收窄的退出边类型（条件可为 null，草稿态） */
+export type ExitEdge = Extract<FlowEdge, { kind: 'exit' }>
+
 /** 元信息 */
 export interface FlowMeta {
   name: string
