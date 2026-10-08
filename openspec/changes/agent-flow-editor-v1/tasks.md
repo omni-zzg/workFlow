@@ -16,21 +16,21 @@
 
 ## 3. 图算法（analysis/）
 
-- [ ] 3.1 实现 Tarjan SCC 循环识别（含自环），验证：单测覆盖单循环/多循环/嵌套环/自环/无环
-- [ ] 3.2 实现可达性（从 start、到 final）、祖先判断 `isAncestor`、后继查询，验证：单测覆盖连通/孤立/死路/回边场景
+- [x] 3.1 实现 Tarjan SCC 循环识别（含自环），验证：单测覆盖单循环/多循环/嵌套环/自环/无环
+- [x] 3.2 实现可达性（从 start、到 final）、祖先判断 `isAncestor`、后继查询，验证：单测覆盖连通/孤立/死路/回边场景
 
 ## 4. 校验规则（validation/）
 
-- [ ] 4.1 定义 Issue 模型与规则注册表（severity/ruleId/message/cellIds），验证：空图返回空列表的单测
-- [ ] 4.2 实现 error 级规则（目标与入口、死循环、终止路径、退出条件完整性），验证：对照 specs/flow-validation 每规则正反例单测
-- [ ] 4.3 实现 warning 级规则（三要素、判断点规范、可控退出、连通性、标注一致性、多 start），验证：对照 specs/flow-validation 每规则正反例单测
+- [x] 4.1 定义 Issue 模型与规则注册表（severity/ruleId/message/cellIds），验证：空图返回空列表的单测
+- [x] 4.2 实现 error 级规则（目标与入口、死循环、终止路径、退出条件完整性），验证：对照 specs/flow-validation 每规则正反例单测
+- [x] 4.3 实现 warning 级规则（三要素、判断点规范、可控退出、连通性、标注一致性、多 start），验证：对照 specs/flow-validation 每规则正反例单测
 
 ## 5. 图封装与基础设施（graph/、stores/）
 
-- [ ] 5.1 Graph 实例封装（创建/销毁、selection/snapline/history/keyboard/clipboard/dnd 插件、导航交互），验证：`pnpm dev` 手动确认画布可缩放/平移、卸载时 dispose 无报错
+- [x] 5.1 Graph 实例封装（创建/销毁、selection/snapline/history/keyboard/clipboard/dnd 插件、导航交互），验证：`pnpm dev` 手动确认画布可缩放/平移、卸载时 dispose 无报错
 - [ ] 5.2 统一 `mutate(fn)` 修改包装（batch + history、栈深上限、导入后清史），验证：手动确认一次程序化修改可被撤销
-- [ ] 5.3 实现 `setCellState/clearCellStates` 态标注接口（design D10），验证：dev 环境以临时入口调用，节点/边出现高亮态样式并能清除
-- [ ] 5.4 轻量状态（useGraph/useSelection/useDocument 脏标记）（design D6），验证：选中变化时状态同步（临时展示确认），无第二份图数据
+- [x] 5.3 实现 `setCellState/clearCellStates` 态标注接口（design D10），验证：dev 环境以临时入口调用，节点/边出现高亮态样式并能清除
+- [x] 5.4 轻量状态（useGraph/useSelection/useDocument 脏标记）（design D6），验证：选中变化时状态同步（临时展示确认），无第二份图数据
 
 ## 6. 节点与边视觉（graph/nodes/、调色板）
 

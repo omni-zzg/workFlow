@@ -151,7 +151,7 @@ Vitest 覆盖全部纯逻辑（`AGENTS.md` 硬性要求）：
 - `schema/`：序列化往返一致性（含多循环、custom 条件）、非法输入的 zod 错误断言。
 - `analysis/`：SCC/自环/多循环、可达性、祖先判断的边界用例。
 - `validation/`：每条规则至少一组正例+反例；空图无问题。
-- `graph/`、`components/` 不写自动化测试（X6 依赖 DOM，成本高收益低），以人工验收清单覆盖交互场景。
+- `graph/` 增加 jsdom 模型级冒烟测试（实例/插件、投影与撤销、态标注、store 联动；以少量浏览器 API polyfill 支撑，不做交互模拟）；`components/` 不写自动化测试，交互场景以人工验收清单覆盖（task 11.1）。
 
 ### D14. 依赖清单
 

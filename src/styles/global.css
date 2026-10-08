@@ -43,5 +43,41 @@ body {
 .app-body {
   flex: 1;
   min-height: 0;
-  padding: 16px;
+}
+
+/* ---- cell 态标注（CellStateController 在 cellView 容器上切换类名） ---- */
+
+.x6-node.flow-state--error .flow-node-card {
+  box-shadow: 0 0 0 2px var(--color-error);
+}
+
+.x6-node.flow-state--warning .flow-node-card {
+  box-shadow: 0 0 0 2px var(--color-warning);
+}
+
+.x6-node.flow-state--flash .flow-node-card {
+  animation: flow-pulse 0.5s ease-in-out 3;
+}
+
+.x6-edge.flow-state--error path {
+  stroke: var(--color-error);
+}
+
+.x6-edge.flow-state--warning path {
+  stroke: var(--color-warning);
+}
+
+.x6-edge.flow-state--flash path {
+  animation: flow-pulse 0.5s ease-in-out 3;
+}
+
+@keyframes flow-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.3;
+  }
 }
