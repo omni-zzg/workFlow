@@ -2,17 +2,17 @@
 
 ## Purpose
 
-以 ReAct 规范持续校验流程图——检测死循环风险、检查必备要素与标注一致性，并把问题分级呈现在画布与问题面板，让"循环退出条件"从隐含假设变成可见、可检验的结构。
+持续校验任务流——逐节点检查"每个任务是否是一个完整的 ReAct 单元"（输入/步骤/循环退出条件/前提条件/反思与重规划），并检查顶层任务流完整性（开始、结束、可达性与失败回退环的出口），把问题分级呈现在画布与问题面板，使循环退出条件与失败处置从隐含假设变成可见、可检验的结构。
 
 ## ADDED Requirements
 
 ### Requirement: 实时与手动校验
 
-画布内容变化后系统 SHALL 自动重新校验（短防抖，不阻断操作），并 SHALL 提供手动校验入口；校验 SHALL NOT 修改流程图数据；空画布 SHALL 不产生任何问题。
+画布内容变化后系统 SHALL 自动重新校验（短防抖，不阻断操作），并 SHALL 提供手动校验入口；校验 SHALL NOT 修改任务流数据；空画布 SHALL 不产生任何问题。
 
 #### Scenario: 编辑触发校验
 
-- **WHEN** 用户删除一条 exit 边，造成某循环失去退出条件
+- **WHEN** 用户清空某任务的全部循环退出条件
 - **THEN** 问题面板在短暂防抖后出现对应的 error 问题
 
 #### Scenario: 空画布无问题
@@ -20,106 +20,117 @@
 - **WHEN** 画布上没有任何节点
 - **THEN** 校验结果为空，问题面板显示"暂无问题"
 
-### Requirement: 目标与入口检查
+### Requirement: 任务标识检查（E1）
 
-流程图 SHALL 至少有一个 start 节点且其 goal 非空，否则报 error；存在多个 start 节点 SHALL 报 warning。
+任务节点 SHALL 具有非空的任务名与目标，否则报 error 并定位到该节点。
 
-#### Scenario: 缺少目标
+#### Scenario: 任务名为空
 
-- **WHEN** 流程图没有 start 节点
-- **THEN** 报 error"缺少开始节点与目标声明"
+- **WHEN** 某任务节点没有填写任务名
+- **THEN** 报 error"任务缺少名称或目标"并定位到该任务节点
 
-#### Scenario: 多个开始节点
+### Requirement: 步骤序列检查（E2 / W1）
 
-- **WHEN** 流程图存在两个 start 节点
-- **THEN** 报 warning"存在多个开始节点"
+任务 SHALL 包含至少一个步骤（一组思考-行动-观察），步骤序列为空时 SHALL 报 error；某个步骤的思考、行动、观察存在缺项时 SHALL 报 warning。
 
-### Requirement: 死循环检测
+#### Scenario: 任务没有步骤
 
-每个循环（有向环）SHALL 至少有一条离开该循环且条件非空的 exit 边，否则报 error，并把问题定位到该循环内的节点。
+- **WHEN** 某任务节点的步骤序列为空
+- **THEN** 报 error"任务没有步骤：至少需要一组思考-行动-观察"
 
-#### Scenario: 检测到无出口循环
+#### Scenario: 步骤不完整
 
-- **WHEN** 一个由回边构成的循环没有任何条件非空的 exit 出边
-- **THEN** 报 error"死循环风险：该循环没有退出条件"并定位到循环内节点
+- **WHEN** 某步骤填写了思考与观察，但没有行动
+- **THEN** 报 warning"步骤不完整：思考/行动/观察存在缺项"
 
-#### Scenario: 补充退出条件后消失
+### Requirement: 循环退出条件检查（E3 / W2）
 
-- **WHEN** 为同一循环新增一条 goal_achieved 的 exit 边
-- **THEN** 该 error 消失
+任务 SHALL 至少声明一条循环退出条件，否则报 error；全部退出条件均属异常/人工/自定义类型（无 goal_achieved、max_iterations、timeout、budget 之一）时 SHALL 报 warning。
 
-### Requirement: 退出条件完整性检查
+#### Scenario: 缺少循环退出条件
 
-kind=exit 的边 SHALL 携带非空且合法的 condition，否则报 error 并定位到该边。
+- **WHEN** 某任务未声明任何循环退出条件
+- **THEN** 报 error"任务缺少循环退出条件"并定位到该任务节点
 
-#### Scenario: 退出边未填条件
+#### Scenario: 仅有异常退出
 
-- **WHEN** 一条 exit 边没有任何条件
-- **THEN** 报 error"退出边缺少退出条件"并定位到该边
+- **WHEN** 某任务的退出条件仅有 error
+- **THEN** 报 warning"循环仅有异常/人工退出，建议补充可控退出条件"
 
-### Requirement: 终止路径检查
+### Requirement: 前提条件检查（E4 / E5）
 
-从 start 节点 SHALL 存在到达某个 final 节点的路径，否则报 error。
+存在 success 出边的任务节点 SHALL 声明非空的前提条件，否则报 error；success 边（source 不是 start）SHALL 携带非空条件，否则报 error 并定位到该边。
+
+#### Scenario: 任务缺少前提条件
+
+- **WHEN** 某任务有 success 出边但没有填写前提条件
+- **THEN** 报 error"任务有成功出边但缺少前提条件"
+
+#### Scenario: 成功边缺少条件
+
+- **WHEN** 一条 success 边（source 非 start）没有条件
+- **THEN** 报 error"success 边缺少前提条件（开始节点的出边除外）"并定位到该边
+
+### Requirement: 开始与终止检查（E6 / E7 / W7）
+
+任务流 SHALL 有且建议仅有一个 start 节点且其 goal 非空，否则报 error；存在多个 start 节点 SHALL 报 warning；从 start SHALL 存在到达某个 final 的路径，否则报 error。
+
+#### Scenario: 缺少开始
+
+- **WHEN** 任务流没有 start 节点
+- **THEN** 报 error"缺少开始节点与全局目标"
 
 #### Scenario: 无法到达终点
 
 - **WHEN** 所有 final 节点均从 start 不可达
 - **THEN** 报 error"没有从开始到结束的路径"
 
-### Requirement: ReAct 三要素检查
+#### Scenario: 多个开始节点
 
-流程图 SHALL 包含至少一组 thought → action → observation 的顺序链，否则报 warning。
+- **WHEN** 任务流存在两个 start 节点
+- **THEN** 报 warning"存在多个开始节点"
 
-#### Scenario: 缺少行动环节
+### Requirement: 失败回退环检查（E8）
 
-- **WHEN** 流程图只有 thought 与 final，没有 action 与 observation
-- **THEN** 报 warning"缺少思考-行动-观察链"
+由失败回退等边构成的循环（有向环）SHALL 至少有一条离开该环的 success 边（能正常退出），否则报 error 并定位到环内节点。
 
-### Requirement: 判断点规范检查
+#### Scenario: 失败回退环没有成功出口
 
-每个循环内 SHALL 包含至少一个 decision 节点；exit 边 SHALL 由 decision 发出，违反者报 warning。
+- **WHEN** 两个任务之间只有 failure 边构成环，没有任何离开该环的 success 边
+- **THEN** 报 error"死循环风险：失败回退形成的环没有成功出口"并定位到环内节点
 
-#### Scenario: 循环内无判断节点
+#### Scenario: 补充成功出口后消失
 
-- **WHEN** 一个循环由 thought → action → observation 回边构成且没有 decision
-- **THEN** 报 warning"循环缺少判断节点"
+- **WHEN** 为该环补一条指向环节点之外（最终可达 final）的 success 边
+- **THEN** 该 error 消失
 
-#### Scenario: 退出边不来自判断节点
+### Requirement: 异常处理检查（W3 / W4）
 
-- **WHEN** 一条 exit 边由 observation 直接发出
-- **THEN** 报 warning"退出边建议由判断节点发出"
+任务的异常处理中反思或重规划为空 SHALL 报 warning；任务存在 success 出边但没有 failure 出边 SHALL 报 warning（建议声明失败出口）。
 
-### Requirement: 可控退出检查
+#### Scenario: 反思为空
 
-循环的退出条件中 SHALL 至少包含一条可控退出（goal_achieved、max_iterations、timeout、budget 之一）；仅含 error 或 human_interrupt 类退出 SHALL 报 warning。
+- **WHEN** 某任务填写了重规划但没有反思内容
+- **THEN** 报 warning"任务缺少失败反思或重规划"
 
-#### Scenario: 仅异常退出
+#### Scenario: 未声明失败出口
 
-- **WHEN** 某循环唯一的 exit 条件是 error
-- **THEN** 报 warning"该循环仅有异常退出，建议补充目标达成或最大迭代条件"
+- **WHEN** 某任务只有 success 出边，没有 failure 出边
+- **THEN** 报 warning"任务未声明失败出口"
 
-### Requirement: 连通性检查
+### Requirement: 连通性检查（W5 / W6）
 
-从 start 不可达的节点 SHALL 报 warning；无法到达任何 final 的节点 SHALL 报 warning。
+从 start 不可达的节点 SHALL 报 warning；非 final 节点没有任何出边（流程中断）SHALL 报 warning。
 
 #### Scenario: 孤立节点
 
-- **WHEN** 画布上存在一个没有任何连线的 action 节点
+- **WHEN** 画布上存在一个没有任何连线的任务节点
 - **THEN** 报 warning"节点从开始节点不可达"
 
-#### Scenario: 死路节点
+#### Scenario: 流程中断
 
-- **WHEN** 某节点走不到任何 final
-- **THEN** 报 warning"该节点无法到达结束节点"
-
-### Requirement: 标注一致性检查
-
-边的 kind 标注 SHALL 与拓扑一致：标记 loop 但未构成有向环、或构成有向环却未标记 loop，均报 warning。
-
-#### Scenario: 误标回边
-
-- **WHEN** 用户把一条非回边标记为 loop
-- **THEN** 报 warning"该边标记为回边但未构成循环"
+- **WHEN** 某任务没有任何出边且它不是最终的承接方
+- **THEN** 报 warning"任务没有出边，流程在此中断"
 
 ### Requirement: 问题呈现与定位
 
@@ -127,8 +138,8 @@ kind=exit 的边 SHALL 携带非空且合法的 condition，否则报 error 并�
 
 #### Scenario: 点击问题定位
 
-- **WHEN** 用户点击问题面板中"退出边缺少退出条件"的条目
-- **THEN** 画布选中该边并高亮，必要时调整视口使其可见
+- **WHEN** 用户点击问题面板中"任务缺少循环退出条件"的条目
+- **THEN** 画布选中该任务节点并高亮，必要时调整视口使其可见
 
 #### Scenario: 画布角标
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-定义流程图的唯一持久化格式（版本化 JSON）并负责其进出：导出为可移植的 JSON 文件、导入时严格校验并完整还原，保证数据在会话之间与工具之间可靠流转。
+定义任务流的唯一持久化格式（版本化 JSON）并负责其进出：导出为可移植 JSON 文件、导入时严格校验并完整还原，保证"任务流 + 节点内 ReAct"的数据在会话之间与工具之间可靠流转。
 
 ## ADDED Requirements
 
@@ -15,31 +15,41 @@
 - **WHEN** 用户导入 version=99 的 JSON
 - **THEN** 系统拒绝导入并提示"不支持的版本 99"，当前画布不受影响
 
-### Requirement: 节点数据模型
+### Requirement: 任务节点数据模型
 
-节点 SHALL 以 {id, type, position:{x,y}, data} 持久化；data 按节点类型区分——start 存 goal，thought/observation 存 content，action 存 tool（name 与 params），decision 存可选 criteria，final 存 answer。节点尺寸 SHALL NOT 持久化，由画布按内容自适应。
+节点 SHALL 以 {id, type, position:{x,y}, data} 持久化；data 按类型区分：start 存 goal；final 存 answer；task 存完整 ReAct 单元——name、goal、input、steps（{id, thought, actions:[{name, params}], observation} 的数组，至少一步）、loop.exitConditions（类型化条件数组）、precondition、onFailure（reflection、replan、maxRetries）。
 
-#### Scenario: 节点字段按类型保存
+#### Scenario: 任务节点含完整 ReAct 结构
 
-- **WHEN** 导出包含六类节点的流程图
-- **THEN** 各节点 data 仅包含其类型对应的字段
+- **WHEN** 导出含一个任务节点的任务流
+- **THEN** 该节点 data 包含 name、goal、input、steps、loop、precondition、onFailure 全部字段
 
-### Requirement: 边与退出条件数据模型
+#### Scenario: 步骤保留动作与参数
 
-边 SHALL 以 {id, source, target, kind} 持久化；kind 为 sequence、loop、exit 之一；exit 边 SHALL 携带 data.condition，其取值为类型化条件之一：goal_achieved、max_iterations{max}、timeout{seconds}、budget{tokens}、error、human_interrupt、custom{text}。
+- **WHEN** 某步骤包含两个带参数的动作
+- **THEN** 序列化后 actions 数组完整保留动作名与参数对象
 
-#### Scenario: 退出边携带类型化条件
+### Requirement: 边与条件数据模型
 
-- **WHEN** 导出含 max_iterations(max=8) 退出边的流程图
-- **THEN** 该边序列化为 {"kind":"exit","data":{"condition":{"type":"max_iterations","params":{"max":8}}}}
+边 SHALL 以 {id, source, target, kind, data} 持久化；kind 为 success、failure 之一；两类边的 data.condition 均为类型化条件（七类之一）或 null——success 边在正式流程中必填（start 出边豁免，草稿态允许 null 并由校验标记），failure 边可选。
+
+#### Scenario: 成功边携带前提条件
+
+- **WHEN** 导出含 goal_achieved 前提条件的 success 边
+- **THEN** 该边序列化为 {"kind":"success","data":{"condition":{"type":"goal_achieved"}}}
+
+#### Scenario: 失败边条件可空
+
+- **WHEN** 一条 failure 边未设置条件
+- **THEN** 序列化为 {"kind":"failure","data":{"condition":null}}，且结构合法
 
 ### Requirement: 序列化往返一致性
 
-同一流程图经"导出 → 导入 → 再导出"SHALL 得到语义等价的 JSON：节点、边、字段与条件无丢失、无篡改。
+同一任务流经"导出 → 导入 → 再导出"SHALL 得到语义等价的 JSON：节点、边、步骤、退出条件与异常处理字段无丢失、无篡改。
 
-#### Scenario: 多循环流程往返
+#### Scenario: 复杂任务流往返
 
-- **WHEN** 对一份含两个循环、多条 exit 边与 custom 条件的流程图执行导出、再导入、再导出
+- **WHEN** 对一份含多个任务、多步骤、多退出条件、failure 边与 custom 条件的数据执行导出、再导入、再导出
 - **THEN** 两次导出的 JSON 语义等价
 
 ### Requirement: 导出为 JSON 文件
@@ -53,17 +63,22 @@
 
 ### Requirement: 导入校验与错误报告
 
-导入 SHALL 先做结构校验；结构非法（JSON 解析失败、缺必需字段、未知节点类型、未知条件类型等）SHALL 给出可读错误（原因与位置），且 SHALL NOT 修改当前画布；校验通过 SHALL 完整还原图（含节点位置、边 kind 与退出条件）。
+导入 SHALL 先做结构校验；结构非法（JSON 解析失败、缺必需字段、未知节点类型、未知边类型、未知条件类型等）SHALL 给出可读错误（原因与位置），且 SHALL NOT 修改当前画布；校验通过 SHALL 完整还原图（含节点位置、步骤、退出条件与边类型）。
 
 #### Scenario: 非法 JSON 被拒绝
 
 - **WHEN** 用户导入一段语法错误的 JSON 文本
 - **THEN** 系统提示解析失败原因，画布保持原样
 
+#### Scenario: 未知节点类型被拒绝
+
+- **WHEN** 用户导入含 type="thought"（旧模型）的 JSON
+- **THEN** 系统提示未知的节点类型与位置，画布保持原样
+
 #### Scenario: 合法文件完整还原
 
-- **WHEN** 用户导入一份合法流程图文件
-- **THEN** 画布完整还原该图，节点位置、边类型与退出条件与文件一致
+- **WHEN** 用户导入一份合法任务流文件
+- **THEN** 画布完整还原该任务流，节点位置、步骤、退出条件与边类型与文件一致
 
 ### Requirement: 校验结果不持久化
 
@@ -71,5 +86,5 @@
 
 #### Scenario: 导出文件不含派生数据
 
-- **WHEN** 导出存在 warning 问题的流程图
+- **WHEN** 导出存在 warning 问题的任务流
 - **THEN** 导出 JSON 中不存在任何校验问题字段

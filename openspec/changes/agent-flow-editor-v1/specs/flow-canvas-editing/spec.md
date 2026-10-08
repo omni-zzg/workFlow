@@ -2,78 +2,83 @@
 
 ## Purpose
 
-提供可视化画布，让用户通过拖拽创建与连线，自由绘制 Agent 工作流流程图，并以差异化视觉呈现六类 ReAct 节点与三类连线，使"思考过程"与"循环退出条件"在图上直接可见。
+提供任务流画布：以开始/任务/结束三类节点与 success/failure 两类连线组织 Agent 工作流；任务卡片常驻 ReAct 骨架摘要，使"输入、步骤、循环退出条件、进入下一任务的前提条件"在画布上一眼可见。
 
 ## ADDED Requirements
 
 ### Requirement: 调色板创建节点
 
-系统 SHALL 提供含六类节点（start、thought、action、observation、decision、final）的调色板；用户 SHALL 能通过拖拽或点击在画布上创建节点，新节点创建后进入选中态。
+系统 SHALL 提供含三类节点（start、task、final）的调色板；用户 SHALL 能通过拖拽或点击在画布上创建节点，新节点创建后进入选中态。
 
-#### Scenario: 拖拽创建
+#### Scenario: 拖拽创建任务节点
 
-- **WHEN** 用户将调色板中的 thought 拖拽到画布落点
-- **THEN** 画布在落点创建一个 thought 节点，内容为空并处于选中态
+- **WHEN** 用户将调色板中的 task 拖拽到画布落点
+- **THEN** 画布在落点创建一个任务节点，内容为空并处于选中态
 
-#### Scenario: 六类节点均可创建
+#### Scenario: 三类节点均可创建
 
-- **WHEN** 用户依次创建六类节点
-- **THEN** 六类节点均成功出现在画布上
+- **WHEN** 用户依次创建 start、task、final 节点
+- **THEN** 三类节点均成功出现在画布上
 
 ### Requirement: 节点类型差异化视觉
 
-系统 SHALL 按节点类型呈现可区分的形状与样式（如 thought 虚线边框、action 工具徽标、decision 菱形），使用户无需阅读文字即可辨认节点类型。
+系统 SHALL 按节点类型呈现可区分的视觉：start 与 final 为胶囊形（区分配色），task 为任务卡片。
 
-#### Scenario: 六类节点互不相同
+#### Scenario: 类型可辨认
 
-- **WHEN** 画布上同时存在六类节点
-- **THEN** 各类型节点的形状、边框或配色互不相同
+- **WHEN** 画布上同时存在三类节点
+- **THEN** 开始/结束为胶囊形状，任务为卡片形状，配色互不相同
 
-### Requirement: 判断节点展示退出条件徽标
+### Requirement: 任务卡片常驻 ReAct 骨架
 
-decision 节点 SHALL 在节点内展示其全部 exit 出边的条件摘要（条件类型名与关键参数，如"目标达成"、"max=8"）。
+任务卡片 SHALL 常驻展示本任务的 ReAct 骨架摘要：任务名、输入、步骤摘要（展示前若干步；步骤数超出时给出"共 N 步"）、循环退出条件徽标、前提条件、失败处理摘要（如"失败重试 ≤3"）。
 
-#### Scenario: 展示多条条件
+#### Scenario: 骨架摘要完整展示
 
-- **WHEN** 某 decision 节点有两条 exit 出边，条件分别为 goal_achieved 与 max_iterations(max=8)
-- **THEN** 节点内并排显示"目标达成"与"max=8"两个条件徽标
+- **WHEN** 任务包含 2 个步骤、退出条件（目标达成、max=5）、前提条件与最大重试 3 次
+- **THEN** 卡片上同时可见：输入、步骤摘要、两个退出条件徽标、前提条件、"失败重试 ≤3"
 
-#### Scenario: 无退出条件时的占位
+#### Scenario: 空任务的占位
 
-- **WHEN** decision 节点没有任何 exit 出边
-- **THEN** 节点内显示"未定义退出条件"的提示样式
+- **WHEN** 任务尚未填写步骤与退出条件
+- **THEN** 卡片对应区域显示"未定义退出条件"等占位样式，而非空白
 
-### Requirement: 拖拽连线与默认类型
+### Requirement: 连线创建与默认类型
 
-用户 SHALL 能从节点的连接点拖拽创建连线；新连线默认 kind 为 sequence。
+用户 SHALL 能从节点的连接点拖拽创建连线；新连线默认 kind 为 `success`。
 
-#### Scenario: 创建顺序连线
+#### Scenario: 创建成功转移连线
 
-- **WHEN** 用户从 thought 的连接点拖拽到下方的 action 节点
-- **THEN** 创建一条 kind=sequence 的连线
+- **WHEN** 用户从任务节点拖拽连到下一个节点
+- **THEN** 创建一条 kind=success 的连线
 
-### Requirement: 回边自动识别
+### Requirement: 回边自动识别为异常路径
 
-当新连线指向源节点的上游祖先（构成有向环）时，系统 SHALL 自动将其识别为 kind=loop 并呈现回边样式（虚线，区别于顺序边）；用户 SHALL 能手动修改任意边的 kind。
+当新连线指向源节点的上游祖先（构成有向环）时，系统 SHALL 自动将其识别为 kind=`failure`（重试/回退路径）并呈现异常样式；用户 SHALL 能手动修改任意边的 kind。
 
-#### Scenario: 自动识别回边
+#### Scenario: 自动识别失败回退边
 
-- **WHEN** 用户从 decision 拖拽连到其上游的 thought
-- **THEN** 新边被标记为 loop，并以虚线回边样式呈现
+- **WHEN** 用户从任务节点拖拽连到其上游的节点
+- **THEN** 新边被标记为 failure，并以异常样式呈现（虚线、区分于 success）
 
 #### Scenario: 手动修改边类型
 
-- **WHEN** 用户在属性面板把一条 sequence 边改为 loop
-- **THEN** 该边立即以回边样式呈现
+- **WHEN** 用户在属性面板把一条 success 边改为 failure
+- **THEN** 该边立即以异常样式呈现
 
 ### Requirement: 连线合法性约束
 
-系统 SHALL 阻止创建重复连线（相同 source 与 target），并给出提示。
+系统 SHALL 阻止创建重复连线（相同 source、target 与 kind）；满足"相同端点、不同 kind"（如同时存在 success 与 failure）SHALL 允许。
 
-#### Scenario: 阻止重复连线
+#### Scenario: 阻止完全重复的连线
 
-- **WHEN** 用户尝试在已存在连线的两个节点之间再次连线
+- **WHEN** 用户尝试在已存在 success 连线的两个节点之间再连一条 success 线
 - **THEN** 系统拒绝创建并提示已存在连线
+
+#### Scenario: 同向不同 kind 允许
+
+- **WHEN** 两个节点之间已有一条 success 边，用户再创建一条 failure 边
+- **THEN** 创建成功
 
 ### Requirement: 选择、移动与删除
 
@@ -81,7 +86,7 @@ decision 节点 SHALL 在节点内展示其全部 exit 出边的条件摘要（�
 
 #### Scenario: 删除节点连带删除边
 
-- **WHEN** 用户删除一个存在入边与出边的节点
+- **WHEN** 用户删除一个存在入边与出边的任务节点
 - **THEN** 该节点与其全部关联连线被一并删除
 
 ### Requirement: 撤销与重做
@@ -90,12 +95,12 @@ decision 节点 SHALL 在节点内展示其全部 exit 出边的条件摘要（�
 
 #### Scenario: 撤销删除
 
-- **WHEN** 用户删除一个节点后执行撤销
+- **WHEN** 用户删除一个任务节点后执行撤销
 - **THEN** 该节点与其关联连线恢复原状
 
 #### Scenario: 导入后历史清理
 
-- **WHEN** 用户导入一份新流程图
+- **WHEN** 用户导入一份新任务流
 - **THEN** 撤销栈被清空，无法撤销回导入前的图
 
 ### Requirement: 画布导航与对齐辅助
@@ -107,18 +112,18 @@ decision 节点 SHALL 在节点内展示其全部 exit 出边的条件摘要（�
 - **WHEN** 用户拖动节点靠近与其他节点的水平或垂直对齐位置
 - **THEN** 显示对齐辅助线并吸附对齐
 
-### Requirement: ReAct 模板一键插入
+### Requirement: 任务流模板一键插入
 
-系统 SHALL 提供 ReAct 骨架模板（start → thought → action → observation → decision → final，含一条 loop 回边与一条 goal_achieved 的 exit 边），用户 SHALL 能一键插入画布。
+系统 SHALL 提供任务流骨架模板：start → task（预填示例步骤、退出条件、前提条件与异常处理）→ final，并含一条 task 指向 final 的 failure 边（超限退出示例）；用户 SHALL 能一键插入画布。
 
 #### Scenario: 插入模板
 
-- **WHEN** 用户在画布点击"插入 ReAct 模板"
-- **THEN** 画布出现完整骨架：六个节点、五条顺序边、一条回边与一条标注 goal_achieved 的退出边
+- **WHEN** 用户在画布点击"插入任务流模板"
+- **THEN** 画布出现完整骨架：三个节点、两条 success 边与一条 failure 边
 
 ### Requirement: 空画布引导
 
-画布无任何节点时 SHALL 显示引导提示（从调色板拖拽节点，或插入 ReAct 模板）。
+画布无任何节点时 SHALL 显示引导提示（从调色板拖拽节点，或插入任务流模板）。
 
 #### Scenario: 空态提示
 

@@ -2,29 +2,35 @@
 
 ## Why
 
-通用流程图工具（draw.io、ProcessOn 等）只能表达普通流程，无法表达 Agent 的推理循环（ReAct）与循环退出条件：画出的 Agent 流程图是"哑图"——没有目标声明、没有思考步骤、循环没有显式退出条件，死循环风险不可见。本项目提供一个专门面向 Agent 工作流的可视化编辑器：节点与连线内建 ReAct 语义，流程图以结构化 JSON 持久化；趁 schema 未定型的窗口期先固化 v1 规划。
+通用流程图工具只能表达普通流程。面向 Agent 工作流的流程图需要回答的是一串更具体的问题：**每个任务是怎样的一个 ReAct 单元**——它怎么接收输入、内部按「思考 → 行动 → 观察」循环执行到何时停止、满足什么前提才能进入下一个任务、失败了如何反思与重规划。本项目提供这样的可视化编辑器：画布是任务流（先做 A、再做 B），每个任务节点内建完整的 ReAct 结构，数据以结构化 JSON 持久化。
+
+> 注：本变更早期草案曾把整张图建模为"单一全局 ReAct 循环"（顶层思考/行动/观察/判断节点）。经确认修正为**任务流 + 节点内 ReAct** 模型，早期实现（任务组 1-11）按其规格已完成，凡与本模型冲突的部分在任务组 12 中重构。
 
 ## What Changes
 
-- 新建 Vue 3 + AntV X6 前端应用（Vite + TypeScript + pnpm + Vitest），提供流程图编辑画布
-- 六类 Agent 节点：`start` / `thought` / `action` / `observation` / `decision` / `final`，按类型差异化视觉渲染与属性表单
-- 三类连线：`sequence`（顺序）/ `loop`（回边）/ `exit`（退出边）；exit 边 MUST 携带**类型化退出条件**（`goal_achieved` / `max_iterations` / `timeout` / `budget` / `error` / `human_interrupt` / `custom`）
-- 自定义 JSON 数据模型（`version` / `meta` / `nodes` / `edges`，`data` 按节点类型判别），与 X6 内部格式双向解耦
-- JSON 导入/导出：导入时合法性校验与错误报告；导出遇 error 级问题时弹确认
-- ReAct 校验器：基于 SCC 的死循环检测、必备要素检查、问题分级（error / warning）、问题面板与画布角标
-- ReAct 模板一键插入（start → thought → action → observation → decision → final 骨架）
-- 同步更新 `AGENTS.md`「数据模型」等章节
+- 画布 = 任务流：`start`（全局目标）→ `task`（任务节点，可多个）→ `final`（最终产出）
+- **每个 `task` 节点内建完整 ReAct 单元**（节点属性编辑）：
+  - `input` 输入；`steps[]` 多组「思考 / 行动（可多个动作）/ 观察」步骤序列
+  - `loop.exitConditions[]` 类型化**循环退出条件**（一轮 = 依次执行全部步骤，未退出则重跑序列）
+  - `precondition` 进入下一任务的前提条件（自由文本）+ `success` 边上的类型化转移条件
+  - `onFailure` 异常处理：反思 → 重规划 → 重试上限
+- 连线两类：`success`（成功转移，条件必填，start 出边豁免）/ `failure`（异常与回退路径，可路由到人工介入等任务）；画布上将向后指的连线自动识别为 `failure`
+- 任务卡片常驻 ReAct 骨架摘要（输入 / 步骤 / **循环退出条件** / 前提条件 / 失败处理），"思考与退出条件"在画布上一眼可见
+- 类型化条件（`goal_achieved` / `max_iterations` / `timeout` / `budget` / `error` / `human_interrupt` / `custom`）在循环退出条件与转移前提条件两处复用
+- 校验规则重定义：逐节点检查 ReAct 必备要素（任务名、T-A-O 步骤、循环退出条件、前提条件、反思与重规划）+ 顶层任务流完整性（含"失败回退环必须有成功出口"）
+- **BREAKING**（相对本变更早期草案）：废弃顶层 `thought / action / observation / decision` 节点与 `sequence / loop / exit` 边语义；相关规格与已实现代码随之重构
+- 同步改写 `AGENTS.md` 领域定义与数据模型
 
-**明确不做（v1 范围外）**：流程图回放/假执行（既定 v2 方向，另立变更）、AI 生成流程图、导出可执行代码、多人协作、后端存储。
+**明确不做（v1 范围外）**：节点内 ReAct 的"可展开子画布"编辑（双击进入、嵌套绘制，schema 预留扩展位）、流程图回放/假执行（既定 v2 方向）、AI 生成流程图、导出可执行代码、多人协作、后端存储。
 
 ## Capabilities
 
 ### New Capabilities
 
-- `flow-canvas-editing`: 画布编辑——节点/边的创建、连线、拖拽、选择、删除、撤销重做、调色板与 ReAct 模板、六类节点与三类边的视觉呈现
-- `flow-property-editing`: 属性编辑——按节点类型渲染差异化表单（goal / content / tool / answer 等），exit 边退出条件的类型化编辑，编辑纳入撤销重做
-- `flow-json-storage`: JSON 数据模型与导入导出——version 化 schema、类型化退出条件、导入合法性校验与错误报告、导出确认、序列化往返一致性
-- `flow-validation`: ReAct 校验与提示——死循环（SCC）检测、ReAct 必备要素检查、问题分级（error / warning）、问题面板与画布角标、编辑期实时校验
+- `flow-canvas-editing`: 任务流画布——开始/任务/结束三类节点的创建与视觉（任务卡片常驻 ReAct 骨架）、success/failure 连线与前提条件、回边自动识别为 failure、删除/撤销等编辑操作、任务流模板与空态引导
+- `flow-property-editing`: 任务节点属性编辑——任务名/目标/输入、步骤序列编辑器（思考/行动/观察，可增删）、循环退出条件编辑器（类型化，可多条）、前提条件、异常处理（反思/重规划/重试上限）；连线 kind 与条件编辑；即时生效并纳入撤销
+- `flow-json-storage`: 任务流 JSON 模型与导入导出——版本化格式、往返一致性、导入结构校验与可读错误、导出确认、不含派生数据
+- `flow-validation`: 校验与提示——逐节点 ReAct 必备要素检查、顶层任务流完整性（开始/结束/可达性、失败回退环的成功出口）、问题分级（error / warning）、问题面板与画布角标、点击定位
 
 ### Modified Capabilities
 
@@ -32,8 +38,7 @@
 
 ## Impact
 
-- 新建整个应用代码：`src/graph/`（X6 封装）、`src/schema/`（数据模型与转换）、`src/components/`（Vue 组件）、`src/stores/`（状态）
-- 新增依赖：`vue@3`、`@antv/x6`、`@antv/x6-vue-shape`、X6 插件（selection / snapline / keyboard / history / clipboard）、`vite`、`typescript`、`vitest`
-- 文档：`AGENTS.md`「核心领域概念」「数据模型」章节随 schema 定稿同步更新
-- 项目基建：当前目录尚未 `git init`，需初始化并配置 `.gitignore`（AGENTS.md 要求每次改动提交）
+- 应用代码：`src/schema/`（数据模型重写）、`src/validation/`（规则集按新模型重写）、`src/graph/`（节点/边/模板/回边识别调整）、`src/components/`（属性面板改为任务表单、调色板、卡片视觉）
+- 复用不变：X6 封装与插件、stores、导入导出框架、问题面板框架、`src/analysis/` 图算法、测试基建
+- 文档：`AGENTS.md`「核心领域概念」「数据模型」重写
 - 纯浏览器应用，无后端依赖；v1 文件流转走本地文件下载/上传
