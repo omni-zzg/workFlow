@@ -3,10 +3,10 @@ import type { Edge } from '@antv/x6'
 import { conditionSummary } from '@/schema'
 import type { EdgeKind, ExitCondition } from '@/schema'
 
-/** 边在 X6 cell.data 中的存储结构（与 schema 的 kind/data 对应） */
+/** 边在 X6 cell.data 中的存储结构（与 schema 的 kind/data 对应；kind 缺省视为 sequence） */
 export interface EdgeCellData {
-  kind: EdgeKind
-  condition: ExitCondition | null
+  kind?: EdgeKind
+  condition?: ExitCondition | null
 }
 
 export function readEdgeKind(edge: Edge): EdgeKind {

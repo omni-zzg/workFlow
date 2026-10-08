@@ -109,3 +109,23 @@ export function inferEdgeKind(graph: Graph, sourceId: string, targetId: string):
   const index = buildIndex(raw.nodes, raw.edges)
   return isAncestor(index, targetId, sourceId) ? 'loop' : 'sequence'
 }
+
+/**
+ * 重复连线判定（spec: flow-canvas-editing —— 阻止相同 source 与 target 的重复连线）。
+ * excludeEdgeId 用于重连场景：正在调整端点的边不与自己比较。
+ */
+export function isDuplicateConnection(
+  graph: Graph,
+  sourceId: string,
+  targetId: string,
+  excludeEdgeId?: string | null,
+): boolean {
+  return graph
+    .getEdges()
+    .some(
+      (edge) =>
+        edge.id !== excludeEdgeId &&
+        edge.getSourceCellId() === sourceId &&
+        edge.getTargetCellId() === targetId,
+    )
+}
