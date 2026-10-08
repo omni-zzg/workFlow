@@ -60,9 +60,20 @@ body {
   border-right: 1px solid var(--color-border);
 }
 
+.app-canvas-column {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .app-canvas {
   flex: 1;
-  min-width: 0;
+  min-height: 0;
+}
+
+.app-canvas-column > .problems-panel {
+  border-top: 1px solid var(--color-border);
 }
 
 .app-panel {

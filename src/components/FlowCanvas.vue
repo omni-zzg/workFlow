@@ -6,6 +6,7 @@ import { CellStateController, createGraph, insertReactTemplate } from '@/graph'
 import { initDocumentTracking, useDocument } from '@/stores/document'
 import { requireGraphRuntime, setGraphRuntime } from '@/stores/graphStore'
 import { initSelectionTracking } from '@/stores/selection'
+import { initValidation } from '@/stores/validation'
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const toast = ref<string | null>(null)
@@ -34,7 +35,11 @@ onMounted(() => {
   const instance = createGraph(container, { onConnectionRejected: showToast })
   graph = instance
   setGraphRuntime({ graph: instance, cellStates: new CellStateController(instance) })
-  disposers = [initSelectionTracking(instance), initDocumentTracking(instance)]
+  disposers = [
+    initSelectionTracking(instance),
+    initDocumentTracking(instance),
+    initValidation(instance),
+  ]
 })
 
 onBeforeUnmount(() => {
