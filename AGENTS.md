@@ -101,20 +101,29 @@ Thought（思考）→ Action（行动）→ Observation（观察）→ 回到 T
 - 节点尺寸不持久化（由内容自适应），仅存左上角坐标
 - 修改 schema 时必须同时更新：本节 + `src/schema` 类型与 zod 定义 + 校验测试
 
-## 目录结构（规划）
+## 目录结构
 
 ```text
 src/
-├── graph/        # X6 图实例封装：创建、插件、事件
-│   └── nodes/    # 自定义节点注册与渲染（按节点类型拆分）
-├── schema/       # JSON 数据模型：类型、校验、序列化/反序列化、X6 互转
-├── components/   # Vue 组件：画布容器、工具栏、属性面板
-└── stores/       # 状态管理
+├── schema/       # 数据模型：类型、zod 校验、持久化格式 <-> 中间形态转换
+├── analysis/     # 纯图算法：SCC 循环识别、可达性、祖先判断（零依赖）
+├── validation/   # ReAct 校验规则集（E1-E4 / W1-W8）与规则注册表
+├── graph/        # X6 封装：实例与插件、投影、mutate、态标注、ReAct 模板、导入导出
+│   └── nodes/    # 六类节点的 Vue SFC 与 shape 注册
+├── components/   # Vue 组件：工具栏、调色板、画布、属性面板、问题面板、导入对话框
+├── stores/       # 轻量状态：图运行时、单选快照、文档脏标记、校验集成
+├── testing/      # 测试夹具（jsdom polyfill、图构造），不进入应用包
+└── styles/       # 全局样式（含 cell 态标注）
 ```
+
+- 依赖方向：`components → graph | stores | schema | validation`；`validation → analysis`；`graph → analysis`。`schema/` 与 `analysis/` 不依赖 X6/Vue。
+- 测试策略：纯逻辑（schema/analysis/validation/template/io）用 Vitest 单测；`graph/` 与关键组件用 jsdom 冒烟（`*.smoke.spec.ts`）；纯视觉与鼠标交互由人工验收。
 
 ## 开发约定
 
 - X6 图编辑逻辑与 Vue 组件解耦：X6 相关代码集中在 `src/graph/`，组件只负责 UI 与调用。
+- 编辑期唯一真源是 X6 `Graph` 实例（领域数据存于 `cell.data`）；`stores/` 只保存派生视图，不得保存第二份图数据。
+- 所有程序化修改（含属性面板写入）必须经 `graph/` 的 `mutate()` 包装，保证撤销粒度正确。
 - 新增/修改节点类型时，同步更新四处：① `schema` 类型 ② 节点渲染 ③ 校验规则 ④ 本文档节点表。
 - JSON 序列化/反序列化与 ReAct 校验规则必须有单元测试（Vitest）。
 - 本文档是活文档：领域概念、schema、目录或命令变化时，同步更新。
