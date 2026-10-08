@@ -93,7 +93,7 @@
 - [x] 12.5 调整画布交互：新连线默认 success、向后指自动识别 failure（dryrun 不占撤销步）、重复判定按 (source,target,kind)，验证：冒烟测试（回边识别/重复判定/同向不同 kind 允许）通过
 - [x] 12.6 重写属性面板：任务表单（基础字段/步骤序列编辑器/循环退出条件编辑器/异常处理）+ 连线表单（kind 与条件），验证：面板场景测试改写并全绿（含退出条件编辑与 failure 边场景）
 - [x] 12.7 更新集成与端到端测试：问题面板场景与 E2E 链路按新模型改写（新建→插入任务流模板→改步骤→清空退出条件出 E3→补回→导出→回导），验证：全量 `pnpm test` + `pnpm build` 通过
-- [ ] 12.8 复核 AGENTS.md/proposal/design/specs 与实现一致性并提交，验证：`openspec validate` 通过且 `git status --porcelain` 为空
+- [x] 12.8 复核 AGENTS.md/proposal/design/specs 与实现一致性并提交，验证：`openspec validate` 通过且 `git status --porcelain` 为空
 
 ## Workflow follow-up
 
