@@ -64,9 +64,9 @@ Thought（思考）→ Action（行动）→ Observation（观察）→ 回到 T
 
 > 以上规则同时用于 JSON 校验和画布 UI 提示，不要在别处重复定义。
 
-## 数据模型（JSON，v1 基线）
+## 数据模型（JSON，v1）
 
-存储格式为自定义 schema（与 X6 内部 JSON 解耦，由 `src/schema` 负责双向转换与校验）：
+存储格式为自定义 schema（与 X6 内部 JSON 解耦，由 `src/schema` 负责转换与校验）：
 
 ```json
 {
@@ -77,23 +77,29 @@ Thought（思考）→ Action（行动）→ Observation（观察）→ 回到 T
       "id": "n1",
       "type": "thought",
       "position": { "x": 100, "y": 200 },
-      "data": {
-        "label": "思考",
-        "content": "需要先查询天气",
-        "tool": null,
-        "exitCondition": null
-      }
+      "data": { "content": "需要先查询天气" }
     }
   ],
   "edges": [
-    { "id": "e1", "source": "n1", "target": "n2", "kind": "sequence", "data": {} }
+    { "id": "e1", "source": "n1", "target": "n2", "kind": "sequence" },
+    {
+      "id": "e2", "source": "n2", "target": "n3", "kind": "exit",
+      "data": { "condition": { "type": "max_iterations", "params": { "max": 8 } } }
+    }
   ]
 }
 ```
 
-- `edges[].kind`：`sequence`（顺序）| `loop`（回边）| `exit`（退出边，`data.condition` 必填）
-- `action` 节点的 `data.tool`：工具名 + 参数
-- 修改 schema 时必须同时更新：本节 + `src/schema` 类型定义 + 校验测试
+- `data` 按节点类型判别，各类型字段互不相同：
+  - `start` → `goal`；`thought` / `observation` → `content`；`final` → `answer`
+  - `action` → `tool: { name, params }`（params 为自由 JSON 对象，人工填写）
+  - `decision` → `criteria?`（可选，判断依据说明）
+- `edges[].kind`：`sequence`（顺序）| `loop`（回边）| `exit`（退出边）
+- **退出条件只属于 exit 边**（节点级无此字段）：`data.condition` 为类型化判别联合，七类：
+  `goal_achieved` | `max_iterations{max}` | `timeout{seconds}` | `budget{tokens}` | `error` | `human_interrupt` | `custom{text}`
+  草稿态允许为 `null`（由校验规则 E4 标记，见 `openspec/specs/flow-validation`）
+- 节点尺寸不持久化（由内容自适应），仅存左上角坐标
+- 修改 schema 时必须同时更新：本节 + `src/schema` 类型与 zod 定义 + 校验测试
 
 ## 目录结构（规划）
 

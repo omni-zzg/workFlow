@@ -5,14 +5,14 @@
 - [x] 1.1 `git init` 并创建 `.gitignore`（node_modules、dist、.env 等），验证：`git status` 不显示 node_modules/dist，且 .env 被忽略
 - [x] 1.2 用 Vite 初始化 Vue 3 + TypeScript 项目并安装依赖（design D14 清单：X6 及插件、zod、vitest），验证：`pnpm install` 成功、`pnpm dev` 能启动页面
 - [x] 1.3 配置 Vitest 并接入 `pnpm test`，验证：`pnpm test` 运行通过（含一个示例测试）
-- [ ] 1.4 确认 package.json scripts 与 AGENTS.md「命令」章节一致，完成首次 git commit，验证：`git log --oneline` 有提交记录
+- [x] 1.4 确认 package.json scripts 与 AGENTS.md「命令」章节一致，完成首次 git commit，验证：`git log --oneline` 有提交记录
 
 ## 2. 数据模型（schema/）
 
-- [ ] 2.1 定义 TS 类型与 zod schema：六类节点判别联合 data、三类边、七类退出条件、version/meta 结构（design D4/D5），验证：`pnpm build` 类型检查通过
-- [ ] 2.2 实现 `graphToSchema`（纯投影）与 `schemaToCells`（FlowSchema → 节点/边描述），验证：单测覆盖"导出→导入→再导出"语义等价，含多循环与 custom 条件
-- [ ] 2.3 编写导入校验单测：语法错误、缺必需字段、未知节点类型、未知条件类型、不支持版本，验证：各返回带路径的可读错误
-- [ ] 2.4 更新 AGENTS.md「数据模型」章节与 schema 定稿一致，验证：文档字段与类型定义逐一对应
+- [x] 2.1 定义 TS 类型与 zod schema：六类节点判别联合 data、三类边、七类退出条件、version/meta 结构（design D4/D5），验证：`pnpm build` 类型检查通过
+- [x] 2.2 实现 `graphToSchema`（纯投影）与 `schemaToCells`（FlowSchema → 节点/边描述），验证：单测覆盖"导出→导入→再导出"语义等价，含多循环与 custom 条件
+- [x] 2.3 编写导入校验单测：语法错误、缺必需字段、未知节点类型、未知条件类型、不支持版本，验证：各返回带路径的可读错误
+- [x] 2.4 更新 AGENTS.md「数据模型」章节与 schema 定稿一致，验证：文档字段与类型定义逐一对应
 
 ## 3. 图算法（analysis/）
 
