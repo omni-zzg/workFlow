@@ -4,6 +4,7 @@ import { getTeleport } from '@antv/x6-vue-shape'
 import EditorToolbar from '@/components/EditorToolbar.vue'
 import FlowCanvas from '@/components/FlowCanvas.vue'
 import NodePalette from '@/components/NodePalette.vue'
+import PropertyPanel from '@/components/PropertyPanel.vue'
 
 // Vue 3 模式：节点组件经 Teleport 挂载到根应用（见 @antv/x6-vue-shape teleport 机制）
 const TeleportHost = getTeleport()
@@ -18,6 +19,7 @@ const TeleportHost = getTeleport()
     <main class="app-body">
       <aside class="app-palette"><NodePalette /></aside>
       <section class="app-canvas"><FlowCanvas /></section>
+      <aside class="app-panel"><PropertyPanel /></aside>
     </main>
     <component :is="TeleportHost" />
   </div>
