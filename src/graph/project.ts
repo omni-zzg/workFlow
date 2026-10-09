@@ -14,7 +14,12 @@ import type {
 import { applyEdgeStyle, createEdgeEndpointTools, readEdgeKind } from './edgeStyle'
 import type { EdgeCellData } from './edgeStyle'
 import { mutate } from './mutate'
-import { NODE_SIZE_BY_TYPE, NODE_TYPE_BY_SHAPE, SHAPE_BY_NODE_TYPE } from './shapes'
+import {
+  NODE_PORT_IDS,
+  NODE_SIZE_BY_TYPE,
+  NODE_TYPE_BY_SHAPE,
+  SHAPE_BY_NODE_TYPE,
+} from './shapes'
 
 /**
  * X6 cell <-> schema 中间形态（RawGraph）的投影（design D1）：
@@ -70,8 +75,9 @@ export function createNodeMetadata(raw: RawNode): Node.Metadata {
 export function createEdgeMetadata(raw: RawEdge): Edge.Metadata {
   return {
     id: raw.id,
-    source: raw.source,
-    target: raw.target,
+    // 端点固定到具体连接点（源出底部、目标入顶部），避免随布局自动切换侧
+    source: { cell: raw.source, port: NODE_PORT_IDS.bottom },
+    target: { cell: raw.target, port: NODE_PORT_IDS.top },
     data: { kind: raw.kind } satisfies EdgeCellData,
     tools: createEdgeEndpointTools(),
   }

@@ -100,6 +100,33 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     graph.dispose()
   })
 
+  it('连线端点固定到连接点：恢复连线带缺省端口，改接后按落点侧固定', async () => {
+    const { graph } = makeTestGraph()
+    insertRawGraph(graph, sampleRaw())
+    await flush()
+
+    // 导入/模板恢复的连线端点自带缺省连接点（源出底部、目标入顶部）
+    const edge = graph.getCellById('e2') as Edge
+    expect(edge.getSource()).toMatchObject({ cell: 'n2', port: 'port-bottom' })
+    expect(edge.getTarget()).toMatchObject({ cell: 'n3', port: 'port-top' })
+
+    // 改接到无端口的节点上 → edge:connected 归一为具体连接点
+    edge.setTarget({ cell: 'n1' })
+    graph.trigger('edge:connected', { edge, e: { clientX: 120, clientY: 600 } })
+    await flush()
+    const target = edge.getTarget() as { cell?: string; port?: string }
+    expect(target.cell).toBe('n1')
+    expect(['port-top', 'port-right', 'port-bottom', 'port-left']).toContain(target.port)
+
+    // 移动节点后端点仍固定在同一连接点（不自动漂移）
+    const port = target.port
+    ;(graph.getCellById('n1') as Node).position(600, 600)
+    await flush()
+    expect((edge.getTarget() as { port?: string }).port).toBe(port)
+
+    graph.dispose()
+  })
+
   it('态标注：类名可应用、可清除（cellView 容器）', async () => {
     const { graph } = makeTestGraph()
     insertRawGraph(graph, sampleRaw())

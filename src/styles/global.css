@@ -48,6 +48,17 @@ body {
   white-space: nowrap;
 }
 
+.app-header__doc {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .app-body {
   display: flex;
   flex: 1;
@@ -81,6 +92,16 @@ body {
   overflow-y: auto;
   background: var(--color-surface);
   border-left: 1px solid var(--color-border);
+}
+
+/* ---- 画布平移（X6 panning 类名；拖拽空白处触发） ---- */
+
+.x6-graph-pannable {
+  cursor: grab;
+}
+
+.x6-graph-panning {
+  cursor: grabbing;
 }
 
 /* ---- 节点通用元素 ---- */

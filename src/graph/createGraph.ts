@@ -1,4 +1,5 @@
 import { Graph } from '@antv/x6'
+import type { Edge, Node } from '@antv/x6'
 import { Clipboard } from '@antv/x6-plugin-clipboard'
 import { History } from '@antv/x6-plugin-history'
 import { Keyboard } from '@antv/x6-plugin-keyboard'
@@ -7,8 +8,9 @@ import { Snapline } from '@antv/x6-plugin-snapline'
 
 import { applyEdgeStyle, createEdgeEndpointTools } from './edgeStyle'
 import type { EdgeCellData } from './edgeStyle'
-import { removeSelectedCells } from './mutate'
+import { mutate, removeSelectedCells } from './mutate'
 import { isDuplicateConnection } from './project'
+import { NODE_PORT_IDS } from './shapes'
 
 export interface CreateGraphOptions {
   /** 连线被拒绝时的提示回调（如重复连线，spec 要求给出提示） */
@@ -35,6 +37,49 @@ function shouldRecordHistory(event: string, args: unknown): boolean {
   return true
 }
 
+/** 导入/模板恢复连线时的缺省连接点（源出底部、目标入顶部） */
+const DEFAULT_ENDPOINT_PORTS = { source: NODE_PORT_IDS.bottom, target: NODE_PORT_IDS.top } as const
+
+/** 按落点方向选择节点上最近的连接点 */
+function nearestPortForPoint(node: Node, point: { x: number; y: number }): string {
+  const center = node.getBBox().getCenter()
+  const dx = point.x - center.x
+  const dy = point.y - center.y
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return dx >= 0 ? NODE_PORT_IDS.right : NODE_PORT_IDS.left
+  }
+  return dy >= 0 ? NODE_PORT_IDS.bottom : NODE_PORT_IDS.top
+}
+
+/**
+ * 端点固定到具体连接点（spec: flow-canvas-editing「连线端点稳定」）：
+ * X6 缺省端点基于 bbox 锚点，空间不足时会自动切换到节点其他侧；这里在连线建立/改接后
+ * 把缺省端点改写为具体连接点（鼠标操作按落点方向取最近侧，导入/模板用缺省值），
+ * 此后端点不随布局自动变化，仅用户改接时才改变。
+ */
+function anchorEdgeTerminals(
+  graph: Graph,
+  edge: Edge,
+  pointer?: { clientX: number; clientY: number },
+): void {
+  for (const type of ['source', 'target'] as const) {
+    const terminal = (type === 'source' ? edge.getSource() : edge.getTarget()) as {
+      cell?: string
+      port?: string
+    }
+    const cellId = terminal.cell
+    if (!cellId || terminal.port) continue
+    const node = graph.getCellById(cellId)
+    if (!node || !node.isNode()) continue
+    const port = pointer
+      ? nearestPortForPoint(node, graph.clientToLocal(pointer.clientX, pointer.clientY))
+      : DEFAULT_ENDPOINT_PORTS[type]
+    mutate(graph, () => {
+      edge.setTerminal(type, { cell: cellId, port })
+    })
+  }
+}
+
 /** 创建并配置图实例（插件、交互、快捷键）；调用方负责 dispose */
 export function createGraph(container: HTMLElement, options: CreateGraphOptions = {}): Graph {
   const graph = new Graph({
@@ -44,7 +89,8 @@ export function createGraph(container: HTMLElement, options: CreateGraphOptions 
     grid: { visible: true, type: 'dot', size: 12, args: { color: '#d9dde5', thickness: 1 } },
     panning: {
       enabled: true,
-      modifiers: 'space',
+      // 拖拽画布空白处直接平移（Shift+拖拽留给框选）
+      modifiers: null,
       eventTypes: ['leftMouseDown', 'rightMouseDown'],
     },
     mousewheel: {
@@ -83,7 +129,14 @@ export function createGraph(container: HTMLElement, options: CreateGraphOptions 
   })
 
   graph.use(
-    new Selection({ enabled: true, multiple: true, rubberband: true, showNodeSelectionBox: true }),
+    new Selection({
+      enabled: true,
+      multiple: true,
+      rubberband: true,
+      // 框选需按住 Shift（空白处直接拖拽为平移画布）
+      modifiers: 'shift',
+      showNodeSelectionBox: true,
+    }),
   )
   graph.use(new Snapline({ enabled: true, sharp: true }))
   graph.use(
@@ -99,6 +152,8 @@ export function createGraph(container: HTMLElement, options: CreateGraphOptions 
   // 新边默认 normal（不做自动识别）；数据变更后同步样式（撤销/重做后保持一致）
   graph.on('edge:added', ({ edge }) => applyEdgeStyle(edge))
   graph.on('edge:change:data', ({ edge }) => applyEdgeStyle(edge))
+  // 连线建立/改接完成后固定端点到具体连接点（不再自动漂移）
+  graph.on('edge:connected', ({ edge, e }) => anchorEdgeTerminals(graph, edge, e))
 
   bindShortcuts(graph)
   return graph

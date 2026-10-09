@@ -25,6 +25,14 @@ export const NODE_SIZE_BY_TYPE: Record<NodeType, { width: number; height: number
 
 export const NODE_TYPES: readonly NodeType[] = ['start', 'task', 'final']
 
+/** 连接点 id（四向）；连线端点固定到连接点时使用 */
+export const NODE_PORT_IDS = {
+  top: 'port-top',
+  right: 'port-right',
+  bottom: 'port-bottom',
+  left: 'port-left',
+} as const
+
 /** 连接点样式：白色小圆点、悬停可辨（鼠标由此拖出连线） */
 const PORT_BODY_ATTRS = {
   r: 5,
@@ -49,10 +57,10 @@ export function createNodePorts(): Node.Metadata['ports'] {
       left: { position: 'left', ...group },
     },
     items: [
-      { id: 'port-top', group: 'top' },
-      { id: 'port-right', group: 'right' },
-      { id: 'port-bottom', group: 'bottom' },
-      { id: 'port-left', group: 'left' },
+      { id: NODE_PORT_IDS.top, group: 'top' },
+      { id: NODE_PORT_IDS.right, group: 'right' },
+      { id: NODE_PORT_IDS.bottom, group: 'bottom' },
+      { id: NODE_PORT_IDS.left, group: 'left' },
     ],
   }
 }
