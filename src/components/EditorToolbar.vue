@@ -208,11 +208,11 @@ watch(showExport, (open) => {
       type="button"
       class="editor-toolbar__btn"
       :title="
-        selectedNodeCount < 2
-          ? '水平居中：需选中至少 2 个节点（Shift 或 Ctrl+点击加选，Shift 拖拽空白处框选）'
-          : '水平居中：选中节点对齐到同一水平中线'
+        selectedNodeCount < 1
+          ? '水平居中：选中节点后可用'
+          : '水平居中：选中节点整体水平移动到画布中线（相对布局不变）'
       "
-      :disabled="selectedNodeCount < 2"
+      :disabled="selectedNodeCount < 1"
       @click="alignNodes('h-center')"
     >
       横居中
@@ -221,11 +221,11 @@ watch(showExport, (open) => {
       type="button"
       class="editor-toolbar__btn"
       :title="
-        selectedNodeCount < 2
-          ? '垂直居中：需选中至少 2 个节点（Shift 或 Ctrl+点击加选，Shift 拖拽空白处框选）'
-          : '垂直居中：选中节点对齐到同一垂直中线'
+        selectedNodeCount < 1
+          ? '垂直居中：选中节点后可用'
+          : '垂直居中：选中节点整体垂直移动到画布中线（相对布局不变）'
       "
-      :disabled="selectedNodeCount < 2"
+      :disabled="selectedNodeCount < 1"
       @click="alignNodes('v-center')"
     >
       纵居中
@@ -234,11 +234,11 @@ watch(showExport, (open) => {
       type="button"
       class="editor-toolbar__btn"
       :title="
-        selectedNodeCount < 3
-          ? '水平等距分布：需选中至少 3 个节点（Shift 或 Ctrl+点击加选，Shift 拖拽空白处框选）'
-          : '水平对称分布：先对齐到一条水平中线，再横向等距（首尾不动、间隙均分），左右对称'
+        selectedNodeCount < 2
+          ? '水平对称分布：需选中至少 2 个节点（Shift 或 Ctrl+点击加选，Shift 拖拽空白处框选）'
+          : '水平对称分布：按行以画布垂直中线为轴等距展开，左右对称（单节点行保持原位）'
       "
-      :disabled="selectedNodeCount < 3"
+      :disabled="selectedNodeCount < 2"
       @click="alignNodes('h-distribute')"
     >
       横等距
@@ -247,11 +247,11 @@ watch(showExport, (open) => {
       type="button"
       class="editor-toolbar__btn"
       :title="
-        selectedNodeCount < 3
-          ? '垂直等距分布：需选中至少 3 个节点（Shift 或 Ctrl+点击加选，Shift 拖拽空白处框选）'
-          : '垂直对称分布：先对齐到一条垂直中线，再纵向等距（首尾不动、间隙均分），上下对称'
+        selectedNodeCount < 2
+          ? '垂直对称分布：需选中至少 2 个节点（Shift 或 Ctrl+点击加选，Shift 拖拽空白处框选）'
+          : '垂直对称分布：按列以画布水平中线为轴等距展开，上下对称（单节点列保持原位）'
       "
-      :disabled="selectedNodeCount < 3"
+      :disabled="selectedNodeCount < 2"
       @click="alignNodes('v-distribute')"
     >
       纵等距

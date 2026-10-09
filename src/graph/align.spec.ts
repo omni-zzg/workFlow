@@ -16,7 +16,10 @@ import {
   distributeVertically,
 } from './align'
 
-/** 节点对齐与对称分布（spec: flow-canvas-editing 的场景级验证） */
+/**
+ * 居中与对称分布（散开·轴对称语义，spec: flow-canvas-editing）：
+ * jsdom 中容器尺寸为 0，画布中线即图坐标原点 (0, 0)。
+ */
 
 beforeAll(() => {
   installJsdomPolyfills()
@@ -34,104 +37,97 @@ function addNode(
   return graph.addNode({ id, shape: 'flow-task', x, y, width, height, data: {} })
 }
 
-function centerY(node: Node): number {
-  return node.getPosition().y + node.getSize().height / 2
-}
-
-function centerX(node: Node): number {
-  return node.getPosition().x + node.getSize().width / 2
-}
-
-describe('节点对齐与分布', () => {
-  it('水平居中：中心 Y 对齐到平均中线，可单步撤销', async () => {
+describe('居中（整组平移到画布中线，不拆散）', () => {
+  it('水平居中：整体水平移动到画布垂直中线，可单步撤销', async () => {
     const { graph } = makeTestGraph()
     const a = addNode(graph, 'a', 0, 0)
     const b = addNode(graph, 'b', 200, 100)
     graph.select([a, b])
     await flush()
 
+    // 组水平中心 150 → 中线 0，整体平移 dx=-150
     expect(alignHorizontalCenter(graph)).toBe(true)
     await flush()
-    expect(centerY(a)).toBe(70)
-    expect(centerY(b)).toBe(70)
+    expect(a.getPosition()).toMatchObject({ x: -150, y: 0 })
+    expect(b.getPosition()).toMatchObject({ x: 50, y: 100 }) // Y 不变（不拆散）
 
     graph.undo()
     await flush()
-    expect(a.getPosition().y).toBe(0)
-    expect(b.getPosition().y).toBe(100)
+    expect(a.getPosition().x).toBe(0)
+    expect(b.getPosition().x).toBe(200)
 
     graph.dispose()
   })
 
-  it('垂直居中：中心 X 对齐到平均中线', async () => {
+  it('垂直居中：整体垂直移动到画布水平中线（X 不变）', async () => {
     const { graph } = makeTestGraph()
     const a = addNode(graph, 'a', 0, 0)
-    const b = addNode(graph, 'b', 200, 300)
+    const b = addNode(graph, 'b', 300, 200)
     graph.select([a, b])
     await flush()
 
+    // 组垂直中心 120 → 中线 0，整体平移 dy=-120
     expect(alignVerticalCenter(graph)).toBe(true)
     await flush()
-    expect(centerX(a)).toBe(150)
-    expect(centerX(b)).toBe(150)
+    expect(a.getPosition()).toMatchObject({ x: 0, y: -120 })
+    expect(b.getPosition()).toMatchObject({ x: 300, y: 80 })
 
     graph.dispose()
   })
+})
 
-  it('横等距（对称分布）：先对齐水平中线，再横向等距、左右对称', async () => {
+describe('对称分布（按行/列以中线为轴展开，单节点行/列不动）', () => {
+  it('横等距：多节点行左右对称等距展开，单节点行保持原位', async () => {
     const { graph } = makeTestGraph()
     const a = addNode(graph, 'a', 0, 0)
-    const b = addNode(graph, 'b', 150, 100)
-    const c = addNode(graph, 'c', 500, 50)
+    const b = addNode(graph, 'b', 500, 0)
+    const c = addNode(graph, 'c', 200, 200)
     graph.select([a, b, c])
     await flush()
 
     expect(distributeHorizontally(graph)).toBe(true)
     await flush()
-    // 中线：平均中心 Y = (20 + 120 + 70) / 3 = 70 → 全部对齐（高 40 → y=50）
-    expect(centerY(a)).toBe(70)
-    expect(centerY(b)).toBe(70)
-    expect(centerY(c)).toBe(70)
-    // 横向等距：跨度 600、宽总和 300 → 间隙 150：a 不动、b=250、c 不动
-    expect(a.getPosition().x).toBe(0)
-    expect(b.getPosition().x).toBe(250)
-    expect(c.getPosition().x).toBe(500)
+    // 第 1 行 [a,b]：跨度 600、宽总和 200 → 间隙 400，以中线 0 为中心 → -300 / 200
+    expect(a.getPosition()).toMatchObject({ x: -300, y: 0 })
+    expect(b.getPosition()).toMatchObject({ x: 200, y: 0 })
+    // 单节点行 c：保持原位（散开）
+    expect(c.getPosition()).toMatchObject({ x: 200, y: 200 })
 
     graph.dispose()
   })
 
-  it('纵等距（对称分布）：先对齐垂直中线，再纵向等距、上下对称', async () => {
+  it('纵等距：多节点列上下对称等距展开，单节点列保持原位', async () => {
     const { graph } = makeTestGraph()
     const a = addNode(graph, 'a', 0, 0)
-    const b = addNode(graph, 'b', 300, 50)
-    const c = addNode(graph, 'c', 100, 400)
+    const b = addNode(graph, 'b', 0, 500)
+    const c = addNode(graph, 'c', 300, 200)
     graph.select([a, b, c])
     await flush()
 
     expect(distributeVertically(graph)).toBe(true)
     await flush()
-    // 中线：平均中心 X = (50 + 350 + 150) / 3 ≈ 183.33 → x = round(183.33 - 50) = 133
-    expect(centerX(a)).toBe(183)
-    expect(centerX(b)).toBe(183)
-    expect(centerX(c)).toBe(183)
-    // 纵向等距：跨度 440、高总和 120 → 间隙 160：a=0、b=200、c 不动
-    expect(a.getPosition().y).toBe(0)
-    expect(b.getPosition().y).toBe(200)
-    expect(c.getPosition().y).toBe(400)
+    // 第 1 列 [a,b]：跨度 540、高总和 80 → 间隙 460，以中线 0 为中心 → -270 / 230
+    expect(a.getPosition()).toMatchObject({ x: 0, y: -270 })
+    expect(b.getPosition()).toMatchObject({ x: 0, y: 230 })
+    // 单节点列 c：保持原位
+    expect(c.getPosition()).toMatchObject({ x: 300, y: 200 })
 
     graph.dispose()
   })
 
-  it('选中数量不足时返回 false（居中需 ≥2、分布需 ≥3）', async () => {
+  it('选中数量不足：选中 1 个节点时分布不可用（居中可用）', async () => {
     const { graph } = makeTestGraph()
-    const a = addNode(graph, 'a', 0, 0)
+    const a = addNode(graph, 'a', 100, 100)
     graph.select([a])
     await flush()
 
-    expect(alignHorizontalCenter(graph)).toBe(false)
-    expect(alignVerticalCenter(graph)).toBe(false)
     expect(distributeHorizontally(graph)).toBe(false)
     expect(distributeVertically(graph)).toBe(false)
+
+    // 单个节点也可居中（整体中心 = 自身中心）
+    expect(alignHorizontalCenter(graph)).toBe(true)
+    await flush()
+    expect(a.getPosition().x).toBe(-50)
 
     graph.dispose()
   })
