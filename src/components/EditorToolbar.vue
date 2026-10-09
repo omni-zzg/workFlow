@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Graph } from '@antv/x6'
 
 import { downloadTextFile, exportFlowJson, flowFileName, resetGraph } from '@/graph'
 import { DEFAULT_META } from '@/schema'
 import { useDocument } from '@/stores/document'
+import { detachCurrentDocument, saveCurrentDocument } from '@/stores/documents'
 import { requireGraphRuntime, useGraphRuntime } from '@/stores/graphStore'
 import { useValidation, validateNow } from '@/stores/validation'
 
+import DocumentDialog from './DocumentDialog.vue'
 import ImportFlowDialog from './ImportFlowDialog.vue'
 
 const canUndo = ref(false)
 const canRedo = ref(false)
 const showImport = ref(false)
+const showDocuments = ref(false)
 let cleanup: (() => void) | null = null
 
 const { meta, dirty, setMeta, markClean } = useDocument()
@@ -45,7 +48,10 @@ watch(
   { immediate: true },
 )
 
-onBeforeUnmount(() => cleanup?.())
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  cleanup?.()
+})
 
 function undo(): void {
   requireGraphRuntime().graph.undo()
@@ -60,14 +66,32 @@ function fitView(): void {
   requireGraphRuntime().graph.zoomToFit({ padding: 48, maxScale: 1 })
 }
 
-/** 新建：清空画布与撤销栈 */
+/** 新建：清空画布与撤销栈（与当前文档解除关联） */
 function newFlow(): void {
   if (dirty.value && !window.confirm('存在未保存的修改，确定新建？')) return
   resetGraph(requireGraphRuntime().graph)
   setMeta({ ...DEFAULT_META })
+  detachCurrentDocument()
   markClean()
   validateNow()
 }
+
+/** 保存到本地文档（spec: flow-document-management） */
+function saveFlow(): void {
+  if (!useGraphRuntime().value) return
+  saveCurrentDocument(requireGraphRuntime().graph, meta.value)
+  markClean()
+}
+
+/** Ctrl/Cmd+S 保存（阻止浏览器默认的"保存网页"） */
+function onKeydown(event: KeyboardEvent): void {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+    event.preventDefault()
+    saveFlow()
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
 
 /** 导出：存在 error 级问题时先确认（spec: flow-json-storage） */
 function exportFlow(): void {
@@ -83,6 +107,8 @@ function exportFlow(): void {
 <template>
   <div class="editor-toolbar">
     <button type="button" class="editor-toolbar__btn" @click="newFlow">新建</button>
+    <button type="button" class="editor-toolbar__btn" @click="showDocuments = true">打开</button>
+    <button type="button" class="editor-toolbar__btn" @click="saveFlow">保存</button>
     <button type="button" class="editor-toolbar__btn" @click="showImport = true">导入</button>
     <button type="button" class="editor-toolbar__btn" @click="exportFlow">导出</button>
     <button type="button" class="editor-toolbar__btn" @click="validateNow()">校验</button>
@@ -97,6 +123,7 @@ function exportFlow(): void {
     <button type="button" class="editor-toolbar__btn" @click="fitView">适应画布</button>
 
     <ImportFlowDialog v-if="showImport" @close="showImport = false" />
+    <DocumentDialog v-if="showDocuments" @close="showDocuments = false" />
   </div>
 </template>
 

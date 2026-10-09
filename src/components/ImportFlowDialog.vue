@@ -4,6 +4,7 @@ import { ref } from 'vue'
 import { importFlowText } from '@/graph'
 import { DEFAULT_META } from '@/schema'
 import { useDocument } from '@/stores/document'
+import { detachCurrentDocument } from '@/stores/documents'
 import { requireGraphRuntime } from '@/stores/graphStore'
 import { validateNow } from '@/stores/validation'
 
@@ -37,6 +38,8 @@ function doImport(): void {
     return
   }
   setMeta({ ...(result.schema.meta ?? DEFAULT_META) })
+  // 导入内容不对应任何已存文档（保存时新建记录）
+  detachCurrentDocument()
   markClean()
   validateNow()
   emit('close')

@@ -43,14 +43,18 @@ export function downloadTextFile(
 
 export type ImportResult = { ok: true; schema: FlowSchema } | { ok: false; errors: string[] }
 
+/** 用持久化 schema 整体替换画布内容并清空撤销栈（导入文件与打开本地文档共用） */
+export function loadSchema(graph: Graph, schema: FlowSchema): void {
+  insertRawGraph(graph, schemaToCells(schema), { clear: true })
+  graph.cleanHistory()
+}
+
 /** 导入：结构校验通过才整体替换画布并清空撤销栈 */
 export function importFlowText(graph: Graph, text: string): ImportResult {
   const parsed = parseFlowSchemaText(text)
   if (!parsed.ok) return parsed
 
-  const cells = schemaToCells(parsed.schema)
-  insertRawGraph(graph, cells, { clear: true })
-  graph.cleanHistory()
+  loadSchema(graph, parsed.schema)
   return { ok: true, schema: parsed.schema }
 }
 
