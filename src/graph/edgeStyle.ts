@@ -1,10 +1,31 @@
 import type { Edge } from '@antv/x6'
+import type { ToolsView } from '@antv/x6'
 
 import type { EdgeKind } from '@/schema'
 
 /** 边在 X6 cell.data 中的存储结构（与 schema 的 kind 对应；kind 缺省视为 normal） */
 export interface EdgeCellData {
   kind?: EdgeKind
+}
+
+/**
+ * 连线端点抓手（X6 arrowhead 工具，spec: flow-canvas-editing「连线端点改接」）：
+ * 每条连线在起点/终点各带一个抓手，可直接拖动改接到其他节点或连接点。
+ * 随连线创建时写入 cell.tools 并常驻（避免 X6 removeTools 不触发视图刷新的问题）；
+ * 改接沿用 validateConnection（自环/重复连线被拒绝），拖到空白处自动回退。
+ */
+export function createEdgeEndpointTools(): NonNullable<ToolsView.Options['items']> {
+  const attrs = {
+    d: 'M -6 0 a 6 6 0 1 0 12 0 a 6 6 0 1 0 -12 0',
+    fill: '#ffffff',
+    stroke: '#3370ff',
+    'stroke-width': 2,
+    cursor: 'move',
+  }
+  return [
+    { name: 'source-arrowhead', args: { attrs } },
+    { name: 'target-arrowhead', args: { attrs } },
+  ]
 }
 
 export function readEdgeKind(edge: Edge): EdgeKind {

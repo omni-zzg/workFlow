@@ -85,6 +85,21 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     graph.dispose()
   })
 
+  it('连线自带端点抓手（起点/终点各一，可直接拖动改接端点）', async () => {
+    const { graph } = makeTestGraph()
+    insertRawGraph(graph, sampleRaw())
+    await flush()
+
+    const edge = graph.getCellById('e2') as Edge
+    expect(edge.getTools()?.items).toHaveLength(2)
+    // 抓手挂在与图装饰层（decorator），命中层级高于节点
+    const decorator = graph.view.decorator
+    expect(decorator.querySelector('.x6-edge-tool-source-arrowhead')).not.toBeNull()
+    expect(decorator.querySelector('.x6-edge-tool-target-arrowhead')).not.toBeNull()
+
+    graph.dispose()
+  })
+
   it('态标注：类名可应用、可清除（cellView 容器）', async () => {
     const { graph } = makeTestGraph()
     insertRawGraph(graph, sampleRaw())

@@ -11,7 +11,7 @@ import type {
   RawNode,
 } from '@/schema'
 
-import { applyEdgeStyle, readEdgeKind } from './edgeStyle'
+import { applyEdgeStyle, createEdgeEndpointTools, readEdgeKind } from './edgeStyle'
 import type { EdgeCellData } from './edgeStyle'
 import { mutate } from './mutate'
 import { NODE_SIZE_BY_TYPE, NODE_TYPE_BY_SHAPE, SHAPE_BY_NODE_TYPE } from './shapes'
@@ -73,6 +73,7 @@ export function createEdgeMetadata(raw: RawEdge): Edge.Metadata {
     source: raw.source,
     target: raw.target,
     data: { kind: raw.kind } satisfies EdgeCellData,
+    tools: createEdgeEndpointTools(),
   }
 }
 

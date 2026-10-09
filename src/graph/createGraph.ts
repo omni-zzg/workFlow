@@ -5,7 +5,7 @@ import { Keyboard } from '@antv/x6-plugin-keyboard'
 import { Selection } from '@antv/x6-plugin-selection'
 import { Snapline } from '@antv/x6-plugin-snapline'
 
-import { applyEdgeStyle } from './edgeStyle'
+import { applyEdgeStyle, createEdgeEndpointTools } from './edgeStyle'
 import type { EdgeCellData } from './edgeStyle'
 import { removeSelectedCells } from './mutate'
 import { isDuplicateConnection } from './project'
@@ -64,6 +64,10 @@ export function createGraph(container: HTMLElement, options: CreateGraphOptions 
       highlight: true,
       router: { name: 'manhattan', args: { padding: 16 } },
       connector: { name: 'rounded', args: { radius: 8 } },
+      // 交互创建的连线同样自带端点抓手（可拖动改接）
+      createEdge() {
+        return this.createEdge({ tools: createEdgeEndpointTools() })
+      },
       validateConnection: ({ sourceCell, targetCell, edge }) => {
         if (!sourceCell || !targetCell) return false
         if (sourceCell.id === targetCell.id) return false
