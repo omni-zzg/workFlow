@@ -78,17 +78,21 @@ describe('节点对齐与分布', () => {
     graph.dispose()
   })
 
-  it('水平等距：首尾不动、中间节点间隙均分', async () => {
+  it('横等距（对称分布）：先对齐水平中线，再横向等距、左右对称', async () => {
     const { graph } = makeTestGraph()
     const a = addNode(graph, 'a', 0, 0)
-    const b = addNode(graph, 'b', 150, 0)
-    const c = addNode(graph, 'c', 500, 0)
+    const b = addNode(graph, 'b', 150, 100)
+    const c = addNode(graph, 'c', 500, 50)
     graph.select([a, b, c])
     await flush()
 
     expect(distributeHorizontally(graph)).toBe(true)
     await flush()
-    // 跨度 600、宽总和 300 → 间隙 150：a 不动、b=250、c 不动
+    // 中线：平均中心 Y = (20 + 120 + 70) / 3 = 70 → 全部对齐（高 40 → y=50）
+    expect(centerY(a)).toBe(70)
+    expect(centerY(b)).toBe(70)
+    expect(centerY(c)).toBe(70)
+    // 横向等距：跨度 600、宽总和 300 → 间隙 150：a 不动、b=250、c 不动
     expect(a.getPosition().x).toBe(0)
     expect(b.getPosition().x).toBe(250)
     expect(c.getPosition().x).toBe(500)
@@ -96,17 +100,21 @@ describe('节点对齐与分布', () => {
     graph.dispose()
   })
 
-  it('垂直等距：首尾不动、中间节点间隙均分', async () => {
+  it('纵等距（对称分布）：先对齐垂直中线，再纵向等距、上下对称', async () => {
     const { graph } = makeTestGraph()
     const a = addNode(graph, 'a', 0, 0)
-    const b = addNode(graph, 'b', 0, 50)
-    const c = addNode(graph, 'c', 0, 400)
+    const b = addNode(graph, 'b', 300, 50)
+    const c = addNode(graph, 'c', 100, 400)
     graph.select([a, b, c])
     await flush()
 
     expect(distributeVertically(graph)).toBe(true)
     await flush()
-    // 跨度 440、高总和 120 → 间隙 160：a=0、b=200、c 不动
+    // 中线：平均中心 X = (50 + 350 + 150) / 3 ≈ 183.33 → x = round(183.33 - 50) = 133
+    expect(centerX(a)).toBe(183)
+    expect(centerX(b)).toBe(183)
+    expect(centerX(c)).toBe(183)
+    // 纵向等距：跨度 440、高总和 120 → 间隙 160：a=0、b=200、c 不动
     expect(a.getPosition().y).toBe(0)
     expect(b.getPosition().y).toBe(200)
     expect(c.getPosition().y).toBe(400)

@@ -236,7 +236,7 @@ watch(showExport, (open) => {
       :title="
         selectedNodeCount < 3
           ? '水平等距分布：需选中至少 3 个节点（Shift 或 Ctrl+点击加选，Shift 拖拽空白处框选）'
-          : '水平等距分布：首尾不动，横向间隙均分'
+          : '水平对称分布：先对齐到一条水平中线，再横向等距（首尾不动、间隙均分），左右对称'
       "
       :disabled="selectedNodeCount < 3"
       @click="alignNodes('h-distribute')"
@@ -249,7 +249,7 @@ watch(showExport, (open) => {
       :title="
         selectedNodeCount < 3
           ? '垂直等距分布：需选中至少 3 个节点（Shift 或 Ctrl+点击加选，Shift 拖拽空白处框选）'
-          : '垂直等距分布：首尾不动，纵向间隙均分'
+          : '垂直对称分布：先对齐到一条垂直中线，再纵向等距（首尾不动、间隙均分），上下对称'
       "
       :disabled="selectedNodeCount < 3"
       @click="alignNodes('v-distribute')"

@@ -61,7 +61,10 @@ export function alignVerticalCenter(graph: Graph): boolean {
   return true
 }
 
-/** 水平等距分布：首尾节点不动，其余节点横向间隙均分 */
+/**
+ * 水平对称分布（横等距）：先对齐到一条水平中线（平均中心 Y），
+ * 再横向等距排列（首尾不动、间隙均分），整体左右对称。单次撤销。
+ */
 export function distributeHorizontally(graph: Graph): boolean {
   const nodes = selectedNodes(graph)
   if (nodes.length < 3) return false
@@ -71,6 +74,12 @@ export function distributeHorizontally(graph: Graph): boolean {
     return ra.x + ra.width / 2 - (rb.x + rb.width / 2)
   })
 
+  const centerYs = sorted.map((node) => {
+    const rect = rectOf(node)
+    return rect.y + rect.height / 2
+  })
+  const targetCenterY = centerYs.reduce((sum, center) => sum + center, 0) / centerYs.length
+
   const first = rectOf(sorted[0]!)
   const last = rectOf(sorted[sorted.length - 1]!)
   const span = last.x + last.width - first.x
@@ -78,16 +87,20 @@ export function distributeHorizontally(graph: Graph): boolean {
   const gap = (span - widthSum) / (sorted.length - 1)
 
   mutate(graph, () => {
-    let cursor = first.x + first.width + gap
-    for (const node of sorted.slice(1, -1)) {
-      node.position(Math.round(cursor), node.getPosition().y)
-      cursor += rectOf(node).width + gap
+    let cursor = first.x
+    for (const node of sorted) {
+      const rect = rectOf(node)
+      node.position(Math.round(cursor), Math.round(targetCenterY - rect.height / 2))
+      cursor += rect.width + gap
     }
   })
   return true
 }
 
-/** 垂直等距分布：首尾节点不动，其余节点纵向间隙均分 */
+/**
+ * 垂直对称分布（纵等距）：先对齐到一条垂直中线（平均中心 X），
+ * 再纵向等距排列（首尾不动、间隙均分），整体上下对称。单次撤销。
+ */
 export function distributeVertically(graph: Graph): boolean {
   const nodes = selectedNodes(graph)
   if (nodes.length < 3) return false
@@ -97,6 +110,12 @@ export function distributeVertically(graph: Graph): boolean {
     return ra.y + ra.height / 2 - (rb.y + rb.height / 2)
   })
 
+  const centerXs = sorted.map((node) => {
+    const rect = rectOf(node)
+    return rect.x + rect.width / 2
+  })
+  const targetCenterX = centerXs.reduce((sum, center) => sum + center, 0) / centerXs.length
+
   const first = rectOf(sorted[0]!)
   const last = rectOf(sorted[sorted.length - 1]!)
   const span = last.y + last.height - first.y
@@ -104,10 +123,11 @@ export function distributeVertically(graph: Graph): boolean {
   const gap = (span - heightSum) / (sorted.length - 1)
 
   mutate(graph, () => {
-    let cursor = first.y + first.height + gap
-    for (const node of sorted.slice(1, -1)) {
-      node.position(node.getPosition().x, Math.round(cursor))
-      cursor += rectOf(node).height + gap
+    let cursor = first.y
+    for (const node of sorted) {
+      const rect = rectOf(node)
+      node.position(Math.round(targetCenterX - rect.width / 2), Math.round(cursor))
+      cursor += rect.height + gap
     }
   })
   return true
