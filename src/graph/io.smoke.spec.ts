@@ -13,7 +13,7 @@ import {
 } from '@/testing/graphTestUtils'
 
 import { CellStateController } from './cellState'
-import { exportFlowJson, importFlowText } from './io'
+import { exportFlowJson, importFlowText, inlineComputedStyles } from './io'
 import { insertRawGraph, projectRawGraph } from './project'
 import { buildReactTemplateCells } from './template'
 
@@ -113,6 +113,40 @@ describe('导入导出', () => {
 
     source.dispose()
     target.dispose()
+  })
+})
+
+describe('导出样式内联（html-to-image 不进入 svg 子树，需预内联）', () => {
+  it('foreignObject 内的 HTML 元素样式被内联到克隆（含类规则与继承属性）', () => {
+    const style = document.createElement('style')
+    style.textContent = '.card { border-radius: 10px; background-color: rgb(1, 2, 3); }'
+    document.head.appendChild(style)
+
+    const container = document.createElement('div')
+    document.body.appendChild(container) // 级联需要元素在文档中
+    container.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg">
+        <g><foreignObject>
+          <div xmlns="http://www.w3.org/1999/xhtml" style="color: rgb(255, 0, 0)">
+            <div class="card">x</div>
+          </div>
+        </foreignObject></g>
+      </svg>`
+
+    const clone = container.cloneNode(true) as HTMLElement
+    inlineComputedStyles(container, clone)
+
+    const clonedCard = clone.querySelector('.card') as HTMLElement
+    expect(clonedCard.style.borderRadius).toBe('10px')
+    expect(clonedCard.style.backgroundColor).toBe('rgb(1, 2, 3)')
+    // 继承属性同样内联（克隆脱离文档样式表也能独立渲染）
+    expect(clonedCard.style.color).toBe('rgb(255, 0, 0)')
+    // SVG 结构保留
+    expect(clone.querySelector('svg')).not.toBeNull()
+    expect(clone.querySelector('foreignObject')).not.toBeNull()
+
+    container.remove()
+    style.remove()
   })
 })
 

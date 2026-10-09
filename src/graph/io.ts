@@ -79,6 +79,85 @@ export function downloadDataUrl(fileName: string, dataUrl: string): void {
 
 export type ImageExportFormat = 'png' | 'svg' | 'html'
 
+/** 继承属性清单：部分实现的 computed 属性枚举不含继承值，需显式补齐（生产浏览器走 cssText 分支） */
+const INHERITED_STYLE_PROPERTIES = [
+  'color',
+  'font',
+  'font-family',
+  'font-size',
+  'font-style',
+  'font-weight',
+  'letter-spacing',
+  'line-height',
+  'text-align',
+  'text-indent',
+  'text-shadow',
+  'text-transform',
+  'white-space',
+  'word-break',
+  'overflow-wrap',
+  'visibility',
+  'cursor',
+  'direction',
+]
+
+/**
+ * 逐元素把计算样式写为内联样式（只处理 HTML 元素，避免覆盖 SVG 的属性如 d/fill）。
+ * 背景：html-to-image 对 <svg> 子树只做原样深拷贝、不进入内部装饰样式，
+ * 而卡片 HTML 位于 X6 的 <svg><foreignObject> 内，必须预先内联，导出才能保留样式。
+ */
+export function inlineComputedStyles(original: Element, clone: Element): void {
+  if (clone instanceof HTMLElement) {
+    const source = window.getComputedStyle(original)
+    if (source.cssText) {
+      clone.style.cssText = source.cssText
+    } else {
+      // 枚举元素自身的 computed 声明（部分实现下 cssText 为空）
+      for (let index = 0; index < source.length; index += 1) {
+        const name = source.item(index)
+        if (!name) continue
+        clone.style.setProperty(name, source.getPropertyValue(name), source.getPropertyPriority(name))
+      }
+      INHERITED_STYLE_PROPERTIES.forEach((name) => {
+        const value = source.getPropertyValue(name)
+        if (value) clone.style.setProperty(name, value)
+      })
+    }
+  }
+  const originalChildren = original.children
+  const cloneChildren = clone.children
+  const count = Math.min(originalChildren.length, cloneChildren.length)
+  for (let index = 0; index < count; index += 1) {
+    const nextOriginal = originalChildren[index]
+    const nextClone = cloneChildren[index]
+    if (nextOriginal && nextClone) {
+      inlineComputedStyles(nextOriginal, nextClone)
+    }
+  }
+}
+
+/** 克隆容器并内联样式后交给 html-to-image 捕获（离屏挂载以获得布局尺寸） */
+export async function captureContainerDataUrl(
+  container: HTMLElement,
+  format: 'png' | 'svg',
+): Promise<string> {
+  const clone = container.cloneNode(true) as HTMLElement
+  inlineComputedStyles(container, clone)
+
+  const host = document.createElement('div')
+  const rect = container.getBoundingClientRect()
+  host.style.cssText = `position: fixed; left: -100000px; top: 0; width: ${rect.width}px; height: ${rect.height}px; pointer-events: none;`
+  host.appendChild(clone)
+  document.body.appendChild(host)
+
+  try {
+    const options = { backgroundColor: '#f6f7f9' }
+    return format === 'png' ? await toPng(clone, options) : await toSvg(clone, options)
+  } finally {
+    host.remove()
+  }
+}
+
 function escapeHtml(text: string): string {
   return text
     .replaceAll('&', '&amp;')
@@ -110,9 +189,10 @@ export async function exportFlowImage(
     // 等待一次渲染，确保捕获到适配后的视口
     await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
 
-    const options = { backgroundColor: '#f6f7f9' }
-    const dataUrl =
-      format === 'png' ? await toPng(graph.container, options) : await toSvg(graph.container, options)
+    const dataUrl = await captureContainerDataUrl(
+      graph.container,
+      format === 'png' ? 'png' : 'svg',
+    )
 
     if (format === 'html') {
       const title = escapeHtml(meta.name || '流程图')
