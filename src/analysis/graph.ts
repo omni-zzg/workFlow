@@ -1,9 +1,9 @@
 /**
  * 纯图算法（零 X6/Vue 依赖）：
- * - Tarjan 强连通分量（SCC）循环识别——每个 SCC 即一个"循环"（语义边界见 design.md Risks：按最大 SCC 分析）
+ * - Tarjan 强连通分量（SCC）循环识别
  * - 可达性 / 祖先判断 / 后继查询
  *
- * 校验器（validation/）与连线时的回边识别（graph/）共用本模块。
+ * 校验器（validation/）使用可达性；SCC 与祖先判断为 v2 回放保留（design D2）。
  */
 
 export interface NodeLike {

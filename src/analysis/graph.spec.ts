@@ -126,7 +126,7 @@ describe('reachableFrom / canReach：可达性', () => {
   })
 })
 
-describe('isAncestor：祖先判断（回边识别基础）', () => {
+describe('isAncestor：祖先判断（通用图算法）', () => {
   const index = makeIndex(
     ['t', 'a', 'd'],
     [

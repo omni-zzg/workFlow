@@ -31,7 +31,6 @@ export function graphToSchema(graph: RawGraph): FlowSchema {
       source: edge.source,
       target: edge.target,
       kind: edge.kind,
-      data: { condition: edge.condition ?? null },
     }),
   )
 
@@ -62,7 +61,6 @@ export function schemaToCells(schema: FlowSchema): { nodes: RawNode[]; edges: Ra
       source: edge.source,
       target: edge.target,
       kind: edge.kind,
-      condition: edge.data.condition,
     }),
   )
 

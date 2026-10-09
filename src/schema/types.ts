@@ -37,8 +37,8 @@ export type ExitCondition =
   | { type: 'human_interrupt' }
   | { type: 'custom'; text: string }
 
-/** 两类连线 */
-export type EdgeKind = 'success' | 'failure'
+/** 两类连线：普通连线（依次衔接）/ 异常出口（失败时转向其他节点，可选） */
+export type EdgeKind = 'normal' | 'exception'
 
 /** 任务步骤中的动作（工具调用；params 为自由 JSON 对象，人工填写） */
 export interface ReactAction {
@@ -73,7 +73,7 @@ export interface TaskData {
   steps: ReactStep[]
   /** 循环退出条件（类型化，可多条） */
   loop: { exitConditions: ExitCondition[] }
-  /** 进入下一任务的判断依据（自由文本；结构化前提声明在 success 边上） */
+  /** 进入下一任务的判断依据（自由文本） */
   precondition: string
   /** 异常处理 */
   onFailure: TaskFailureHandling
@@ -93,18 +93,13 @@ export type FlowNode = {
   [T in NodeType]: { id: string; type: T; position: XY; data: NodeDataMap[T] }
 }[NodeType]
 
-/** 边携带的数据：类型化条件或 null（草稿态，由校验标记） */
-export interface EdgeData {
-  condition: ExitCondition | null
+/** 边：普通连线（依次衔接）/ 异常出口（失败时转向其他节点，可选）；均无附加数据 */
+export interface FlowEdge {
+  id: string
+  source: string
+  target: string
+  kind: EdgeKind
 }
-
-/** 边：success（成功转移）/ failure（异常与回退路径），两类均可暂为 null 条件 */
-export type FlowEdge =
-  | { id: string; source: string; target: string; kind: 'success'; data: EdgeData }
-  | { id: string; source: string; target: string; kind: 'failure'; data: EdgeData }
-
-/** 已收窄的成功转移边（校验规则 E5 使用） */
-export type SuccessEdge = Extract<FlowEdge, { kind: 'success' }>
 
 /** 元信息 */
 export interface FlowMeta {
@@ -133,5 +128,4 @@ export interface RawEdge {
   source: string
   target: string
   kind: EdgeKind
-  condition: ExitCondition | null
 }

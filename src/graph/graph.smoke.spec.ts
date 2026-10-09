@@ -27,7 +27,7 @@ import { buildReactTemplateCells, insertReactTemplate } from './template'
 
 /**
  * 图封装层的模型级冒烟测试（jsdom）：
- * 验证实例/插件、投影与撤销、态标注、任务卡片骨架、回边识别与模板。交互仍由人工验收。
+ * 验证实例/插件、投影与撤销、态标注、任务卡片骨架、连线与模板。交互仍由人工验收。
  */
 
 beforeAll(() => {
@@ -54,8 +54,7 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
       data: { name: '测试任务', precondition: '前提' },
     })
     const edge = projected.edges.find((e) => e.id === 'e2')
-    expect(edge).toMatchObject({ kind: 'success', source: 'n2', target: 'n3' })
-    expect(edge?.condition).toEqual({ type: 'max_iterations', params: { max: 3 } })
+    expect(edge).toMatchObject({ kind: 'normal', source: 'n2', target: 'n3' })
 
     expect(graph.canUndo()).toBe(true)
     graph.undo()
@@ -118,20 +117,20 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     graph.dispose()
   })
 
-  it('两类边样式：success 前置条件标签；failure 虚线 +「异常」标签', async () => {
+  it('两类边样式：normal 实线无标签；exception 橙虚线 +「异常」标签', async () => {
     const { graph } = makeTestGraph()
     insertRawGraph(graph, sampleRaw())
     await flush()
 
-    const successWithCondition = graph.getCellById('e2') as Edge
-    expect(labelTexts(successWithCondition)).toEqual(['max=3'])
-    expect(successWithCondition.attr('line/strokeDasharray')).toBeFalsy()
+    const normalEdge = graph.getCellById('e2') as Edge
+    expect(normalEdge.getLabels()).toHaveLength(0)
+    expect(normalEdge.attr('line/strokeDasharray')).toBeFalsy()
 
-    const failureEdge = graph.getCellById('e3') as Edge
-    expect(labelTexts(failureEdge)).toEqual(['异常'])
-    expect(failureEdge.attr('line/strokeDasharray')).toBe('6 4')
+    const exceptionEdge = graph.getCellById('e3') as Edge
+    expect(labelTexts(exceptionEdge)).toEqual(['异常'])
+    expect(exceptionEdge.attr('line/strokeDasharray')).toBe('6 4')
 
-    // start 出边条件为 null（豁免）——不显示标签
+    // 普通连线的起点边同样无标签
     const startEdge = graph.getCellById('e1') as Edge
     expect(startEdge.getLabels()).toHaveLength(0)
 
@@ -223,16 +222,16 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     graph.dispose()
   })
 
-  it('新连线指向祖先（构成环）自动识别为 failure，且不产生额外撤销步骤', async () => {
+  it('新连线默认 normal（不做回边自动识别），且不产生额外撤销步骤', async () => {
     const { graph } = makeTestGraph()
     insertRawGraph(graph, sampleRaw())
     await flush()
 
-    // n2 -> n1：n1 是 n2 的祖先，构成环 => failure（重试/回退路径）
+    // n2 -> n1 构成环，但按普通连线模型不做任何自动识别
     const edge = graph.addEdge({ id: 'back-edge', source: 'n2', target: 'n1' })
     await flush()
-    expect(readEdgeKind(edge)).toBe('failure')
-    expect(labelTexts(edge)).toEqual(['异常'])
+    expect(readEdgeKind(edge)).toBe('normal')
+    expect(edge.getLabels()).toHaveLength(0)
 
     graph.undo()
     await flush()
@@ -244,23 +243,24 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     const { graph } = makeTestGraph()
     insertRawGraph(graph, sampleRaw())
     await flush()
-    expect(isDuplicateConnection(graph, 'n2', 'n3', 'success')).toBe(true) // e2
-    expect(isDuplicateConnection(graph, 'n2', 'n3', 'failure')).toBe(true) // e3
-    expect(isDuplicateConnection(graph, 'n1', 'n2', 'failure')).toBe(false) // 仅存在 success
-    expect(isDuplicateConnection(graph, 'n2', 'n3', 'success', 'e2')).toBe(false) // 重连自身
+    expect(isDuplicateConnection(graph, 'n2', 'n3', 'normal')).toBe(true) // e2
+    expect(isDuplicateConnection(graph, 'n2', 'n3', 'exception')).toBe(true) // e3
+    expect(isDuplicateConnection(graph, 'n1', 'n2', 'exception')).toBe(false) // 仅存在 normal
+    expect(isDuplicateConnection(graph, 'n2', 'n3', 'normal', 'e2')).toBe(false) // 重连自身
     graph.dispose()
   })
 
-  it('任务流模板：结构完整（2 条 success + 1 条 failure）且零校验问题', () => {
+  it('任务流模板：开始 → 任务1 → 任务2 → 结束（三条普通连线）且零校验问题', () => {
     const cells = buildReactTemplateCells()
-    expect(cells.nodes).toHaveLength(3)
-    expect(cells.nodes.map((node) => node.nodeType)).toEqual(['start', 'task', 'final'])
-    const kinds = cells.edges.map((edge) => edge.kind)
-    expect(kinds.filter((kind) => kind === 'success')).toHaveLength(2)
-    expect(kinds.filter((kind) => kind === 'failure')).toHaveLength(1)
-    expect(cells.edges.find((edge) => edge.kind === 'success' && edge.condition)?.condition).toEqual({
-      type: 'goal_achieved',
-    })
+    expect(cells.nodes).toHaveLength(4)
+    expect(cells.nodes.map((node) => node.nodeType)).toEqual(['start', 'task', 'task', 'final'])
+    expect(cells.edges).toHaveLength(3)
+    expect(cells.edges.every((edge) => edge.kind === 'normal')).toBe(true)
+    expect(cells.edges.map((edge) => `${edge.source}->${edge.target}`)).toEqual([
+      'tpl-start->tpl-task-1',
+      'tpl-task-1->tpl-task-2',
+      'tpl-task-2->tpl-final',
+    ])
 
     const schema = graphToSchema({ nodes: cells.nodes, edges: cells.edges, meta: cells.meta })
     expect(validate(schema)).toEqual([])
@@ -271,7 +271,7 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     insertReactTemplate(graph)
     insertReactTemplate(graph)
     await flush()
-    expect(graph.getNodes()).toHaveLength(6)
+    expect(graph.getNodes()).toHaveLength(8)
     expect(graph.getEdges()).toHaveLength(6)
     graph.dispose()
   })

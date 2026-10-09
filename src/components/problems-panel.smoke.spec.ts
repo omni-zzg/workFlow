@@ -49,7 +49,7 @@ describe('问题面板', () => {
     expect(host.textContent).toContain('暂无问题')
 
     // 清空任务的循环退出条件 → E3
-    const task = graph.getCellById('tpl-task') as Node
+    const task = graph.getCellById('tpl-task-1') as Node
     mutate(graph, () => {
       const data = task.getData<TaskData>()
       task.replaceData({ ...data, loop: { exitConditions: [] } })
@@ -61,7 +61,7 @@ describe('问题面板', () => {
     expect(host.textContent).toContain('错误')
 
     // 画布角标：任务节点带 error 态
-    const view = graph.findViewByCell('tpl-task')
+    const view = graph.findViewByCell('tpl-task-1')
     expect(view?.container.classList.contains('flow-state--error')).toBe(true)
 
     // 点击问题条目 → 选中并闪烁定位
@@ -69,7 +69,7 @@ describe('问题面板', () => {
     expect(item).not.toBeNull()
     item.click()
     await nextTick()
-    expect(useSelection().value?.cellId).toBe('tpl-task')
+    expect(useSelection().value?.cellId).toBe('tpl-task-1')
     expect(view?.container.classList.contains('flow-state--flash')).toBe(true)
 
     // 修复：补回退出条件 → 问题消失、角标清除

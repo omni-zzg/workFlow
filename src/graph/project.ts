@@ -1,10 +1,8 @@
 import type { Edge, Graph, Node } from '@antv/x6'
 
-import { buildIndex, isAncestor } from '@/analysis'
 import { DEFAULT_META } from '@/schema'
 import type {
   EdgeKind,
-  ExitCondition,
   FlowMeta,
   NodeData,
   NodeType,
@@ -13,8 +11,8 @@ import type {
   RawNode,
 } from '@/schema'
 
-import { applyEdgeStyle, readEdgeCondition, readEdgeKind } from './edgeStyle'
-// readEdgeKind 同时供 project 内部（投影）与 isDuplicateConnection 使用
+import { applyEdgeStyle, readEdgeKind } from './edgeStyle'
+import type { EdgeCellData } from './edgeStyle'
 import { mutate } from './mutate'
 import { NODE_SIZE_BY_TYPE, NODE_TYPE_BY_SHAPE, SHAPE_BY_NODE_TYPE } from './shapes'
 
@@ -50,7 +48,6 @@ export function projectRawGraph(graph: Graph, meta: FlowMeta = DEFAULT_META): Ra
       source: edge.getSourceCellId(),
       target: edge.getTargetCellId(),
       kind: readEdgeKind(edge),
-      condition: readEdgeCondition(edge),
     }
   })
 
@@ -75,10 +72,7 @@ export function createEdgeMetadata(raw: RawEdge): Edge.Metadata {
     id: raw.id,
     source: raw.source,
     target: raw.target,
-    data: { kind: raw.kind, condition: raw.condition } satisfies {
-      kind: EdgeKind
-      condition: ExitCondition | null
-    },
+    data: { kind: raw.kind } satisfies EdgeCellData,
   }
 }
 
@@ -104,18 +98,8 @@ export function insertRawGraph(
 }
 
 /**
- * 依据当前图拓扑推断新连线的 kind：目标节点是源节点祖先 => 回边（复用 analysis 纯算法）。
- * 回边代表重试/回退路径，自动识别为 failure；其余为 success。
- */
-export function inferEdgeKind(graph: Graph, sourceId: string, targetId: string): EdgeKind {
-  const raw = projectRawGraph(graph)
-  const index = buildIndex(raw.nodes, raw.edges)
-  return isAncestor(index, targetId, sourceId) ? 'failure' : 'success'
-}
-
-/**
  * 重复连线判定（spec: flow-canvas-editing —— 阻止相同 source、target 与 kind 的重复连线；
- * 同向不同 kind——如同时存在 success 与 failure——允许）。
+ * 同向不同 kind——如同时存在普通连线与异常出口——允许）。
  * excludeEdgeId 用于重连场景：正在调整端点的边不与自己比较。
  */
 export function isDuplicateConnection(

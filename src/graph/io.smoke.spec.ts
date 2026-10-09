@@ -38,10 +38,10 @@ describe('导入导出', () => {
     const firstNode = (parsed.nodes as Array<Record<string, unknown>>)[0]!
     expect(Object.keys(firstNode).sort()).toEqual(['data', 'id', 'position', 'type'])
 
-    // 边仅有 success / failure 两类，且携带 data.condition
-    const edges = parsed.edges as Array<{ kind: string; data: { condition: unknown } }>
-    expect(edges.every((edge) => edge.kind === 'success' || edge.kind === 'failure')).toBe(true)
-    expect(edges.every((edge) => 'condition' in edge.data)).toBe(true)
+    // 边仅有 normal / exception 两类，且不含附加数据
+    const edges = parsed.edges as Array<Record<string, unknown>>
+    expect(edges.every((edge) => edge.kind === 'normal' || edge.kind === 'exception')).toBe(true)
+    expect(edges.every((edge) => !('data' in edge))).toBe(true)
 
     // 不含校验结果等派生字段
     expect(text).not.toContain('severity')
@@ -83,7 +83,7 @@ describe('导入导出', () => {
     graph.dispose()
   })
 
-  it('导入合法文件：完整还原（位置/步骤/kind/条件）并清空撤销栈', async () => {
+  it('导入合法文件：完整还原（位置/步骤/连线）并清空撤销栈', async () => {
     const source = makeTestGraph().graph
     insertRawGraph(source, buildReactTemplateCells())
     await flush()
@@ -100,15 +100,12 @@ describe('导入导出', () => {
     expect(result.ok).toBe(true)
     await flush()
 
-    expect(target.getNodes()).toHaveLength(3)
+    expect(target.getNodes()).toHaveLength(4)
     expect(target.getEdges()).toHaveLength(3)
     expect(target.canUndo()).toBe(false) // 撤销栈已清空
 
     const projected = projectRawGraph(target)
-    expect(projected.edges.find((edge) => edge.kind === 'failure')?.condition).toEqual({
-      type: 'max_iterations',
-      params: { max: 5 },
-    })
+    expect(projected.edges.every((edge) => edge.kind === 'normal')).toBe(true)
     const start = projected.nodes.find((node) => node.nodeType === 'start')
     expect(start?.x).toBe(360)
     const task = projected.nodes.find((node) => node.nodeType === 'task')
@@ -157,7 +154,7 @@ describe('导入对话框', () => {
     importButton.click()
     await nextTick()
 
-    expect(graph.getNodes()).toHaveLength(3)
+    expect(graph.getNodes()).toHaveLength(4)
     expect(useDocument().dirty.value).toBe(false) // 导入后视为已保存
     expect(useDocument().meta.value.name).toBe('对话导入')
 

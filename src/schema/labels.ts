@@ -8,8 +8,8 @@ export const NODE_TYPE_LABELS: Record<NodeType, string> = {
 }
 
 export const EDGE_KIND_LABELS: Record<EdgeKind, string> = {
-  success: '成功',
-  failure: '异常',
+  normal: '普通连线',
+  exception: '异常出口',
 }
 
 export const CONDITION_TYPE_LABELS: Record<ConditionType, string> = {
@@ -22,7 +22,7 @@ export const CONDITION_TYPE_LABELS: Record<ConditionType, string> = {
   custom: '自定义',
 }
 
-/** 条件摘要（循环退出条件徽标、边标签、面板共用） */
+/** 条件摘要（循环退出条件徽标、面板共用） */
 export function conditionSummary(condition: ExitCondition | null): string {
   if (!condition) return '未定义'
   switch (condition.type) {

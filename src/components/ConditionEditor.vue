@@ -2,7 +2,7 @@
 import { CONDITION_TYPE_LABELS } from '@/schema'
 import type { ConditionType, ExitCondition } from '@/schema'
 
-/** 类型化条件的编辑控件（循环退出条件与转移前提条件共用） */
+/** 类型化条件的编辑控件（仅用于循环退出条件） */
 const props = defineProps<{
   condition: ExitCondition | null
 }>()

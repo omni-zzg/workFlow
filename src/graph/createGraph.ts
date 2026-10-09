@@ -1,5 +1,4 @@
 import { Graph } from '@antv/x6'
-import type { Edge } from '@antv/x6'
 import { Clipboard } from '@antv/x6-plugin-clipboard'
 import { History } from '@antv/x6-plugin-history'
 import { Keyboard } from '@antv/x6-plugin-keyboard'
@@ -9,7 +8,7 @@ import { Snapline } from '@antv/x6-plugin-snapline'
 import { applyEdgeStyle } from './edgeStyle'
 import type { EdgeCellData } from './edgeStyle'
 import { removeSelectedCells } from './mutate'
-import { inferEdgeKind, isDuplicateConnection } from './project'
+import { isDuplicateConnection } from './project'
 
 export interface CreateGraphOptions {
   /** 连线被拒绝时的提示回调（如重复连线，spec 要求给出提示） */
@@ -34,25 +33,6 @@ function shouldRecordHistory(event: string, args: unknown): boolean {
     if (key !== undefined && NON_UNDOABLE_CHANGE_KEYS.has(key)) return false
   }
   return true
-}
-
-/**
- * 回边自动识别（spec: flow-canvas-editing）：用户新连线若指向源节点的祖先（构成环），
- * 自动标记为 failure（重试/回退路径）；success 为缺省值（无需写入）。
- * 推断写入使用 X6 的 dryrun 选项，不占独立撤销步骤。
- */
-function inferKindForNewEdge(graph: Graph, edge: Edge): void {
-  const data = edge.getData<EdgeCellData>()
-  if (data?.kind) return // 程序化插入/导入的边自带 kind
-
-  const sourceId = edge.getSourceCellId()
-  const targetId = edge.getTargetCellId()
-  if (!sourceId || !targetId) return
-
-  const kind = inferEdgeKind(graph, sourceId, targetId)
-  if (kind === 'success') return
-
-  edge.setData({ kind, condition: null }, { dryrun: true })
 }
 
 /** 创建并配置图实例（插件、交互、快捷键）；调用方负责 dispose */
@@ -87,8 +67,8 @@ export function createGraph(container: HTMLElement, options: CreateGraphOptions 
       validateConnection: ({ sourceCell, targetCell, edge }) => {
         if (!sourceCell || !targetCell) return false
         if (sourceCell.id === targetCell.id) return false
-        // 按"新边将获得的 kind"判重，允许同向不同 kind（如 success 与 failure 并存）
-        const prospectiveKind = inferEdgeKind(graph, sourceCell.id, targetCell.id)
+        // 新连线默认 normal；重连既有边时按其自身 kind 判重——允许同向不同 kind（普通 + 异常出口并存）
+        const prospectiveKind = edge?.getData<EdgeCellData>()?.kind ?? 'normal'
         if (isDuplicateConnection(graph, sourceCell.id, targetCell.id, prospectiveKind, edge?.id)) {
           options.onConnectionRejected?.('已存在同方向的同类连线')
           return false
@@ -112,11 +92,8 @@ export function createGraph(container: HTMLElement, options: CreateGraphOptions 
   graph.use(new Keyboard({ enabled: true, global: false }))
   graph.use(new Clipboard({ enabled: true }))
 
-  // 新边：推断 kind（回边识别）后重算样式；数据变更后同步样式（撤销/重做后保持一致）
-  graph.on('edge:added', ({ edge }) => {
-    inferKindForNewEdge(graph, edge)
-    applyEdgeStyle(edge)
-  })
+  // 新边默认 normal（不做自动识别）；数据变更后同步样式（撤销/重做后保持一致）
+  graph.on('edge:added', ({ edge }) => applyEdgeStyle(edge))
   graph.on('edge:change:data', ({ edge }) => applyEdgeStyle(edge))
 
   bindShortcuts(graph)

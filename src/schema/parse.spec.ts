@@ -25,15 +25,9 @@ function makeValidFlow(): Record<string, unknown> {
       { id: 'f', type: 'final', position: { x: 0, y: 200 }, data: { answer: '答案' } },
     ],
     edges: [
-      { id: 'e1', source: 's', target: 't', kind: 'success', data: { condition: null } },
-      {
-        id: 'e2',
-        source: 't',
-        target: 'f',
-        kind: 'success',
-        data: { condition: { type: 'goal_achieved' } },
-      },
-      { id: 'e3', source: 't', target: 'f', kind: 'failure', data: { condition: null } },
+      { id: 'e1', source: 's', target: 't', kind: 'normal' },
+      { id: 'e2', source: 't', target: 'f', kind: 'normal' },
+      { id: 'e3', source: 't', target: 'f', kind: 'exception' },
     ],
   }
 }
@@ -43,7 +37,7 @@ function clone<T>(value: T): T {
 }
 
 describe('parse：导入校验（任务流模型）', () => {
-  it('合法输入解析成功（含节点内 ReAct 结构与 null 条件）', () => {
+  it('合法输入解析成功（含节点内 ReAct 结构与普通/异常出口连线）', () => {
     const result = parseFlowSchema(makeValidFlow())
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -51,7 +45,7 @@ describe('parse：导入校验（任务流模型）', () => {
       const task = result.schema.nodes.find((node) => node.type === 'task')
       expect(task?.data.name).toBe('查询天气')
       if (task) expect(task.data.steps).toHaveLength(1)
-      expect(result.schema.edges.map((edge) => edge.kind)).toEqual(['success', 'success', 'failure'])
+      expect(result.schema.edges.map((edge) => edge.kind)).toEqual(['normal', 'normal', 'exception'])
     }
   })
 
@@ -79,24 +73,13 @@ describe('parse：导入校验（任务流模型）', () => {
     }
   })
 
-  it('未知连线类型：报出类型与位置', () => {
+  it('未知连线类型：报出类型与位置（含首轮修订模型的 success/failure）', () => {
     const flow = clone(makeValidFlow())
-    ;(flow.edges as Record<string, unknown>[])[0]!.kind = 'loop'
+    ;(flow.edges as Record<string, unknown>[])[0]!.kind = 'failure'
     const result = parseFlowSchema(flow)
     expect(result.ok).toBe(false)
     if (!result.ok) {
-      expect(result.errors[0]).toBe('edges.0.kind：未知的连线类型 "loop"')
-    }
-  })
-
-  it('未知条件类型（边）：报出类型与位置', () => {
-    const flow = clone(makeValidFlow())
-    const edge = (flow.edges as Record<string, unknown>[])[1]!
-    ;(edge.data as Record<string, unknown>).condition = { type: 'never' }
-    const result = parseFlowSchema(flow)
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.errors[0]).toBe('edges.1.data.condition.type：未知的条件类型 "never"')
+      expect(result.errors[0]).toBe('edges.0.kind：未知的连线类型 "failure"')
     }
   })
 

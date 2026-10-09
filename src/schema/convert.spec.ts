@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_META, graphToSchema, schemaToCells } from './convert'
 import type { FlowSchema } from './types'
 
-/** 覆盖样本：两个任务、多步骤、多退出条件、custom 条件、failure 边、null 条件 */
+/** 覆盖样本：两个任务、多步骤、多退出条件、custom 条件、异常出口边 */
 const sample: FlowSchema = {
   version: 1,
-  meta: { name: '双任务流', description: '覆盖多步骤与 failure 边' },
+  meta: { name: '双任务流', description: '覆盖多步骤与异常出口边' },
   nodes: [
     { id: 's1', type: 'start', position: { x: 0, y: 0 }, data: { goal: '为用户生成出行建议' } },
     {
@@ -65,33 +65,15 @@ const sample: FlowSchema = {
     { id: 'f1', type: 'final', position: { x: 0, y: 480 }, data: { answer: '最终建议' } },
   ],
   edges: [
-    { id: 'e1', source: 's1', target: 't1', kind: 'success', data: { condition: null } },
-    {
-      id: 'e2',
-      source: 't1',
-      target: 't2',
-      kind: 'success',
-      data: { condition: { type: 'goal_achieved' } },
-    },
-    {
-      id: 'e3',
-      source: 't2',
-      target: 't1',
-      kind: 'failure',
-      data: { condition: { type: 'max_iterations', params: { max: 2 } } },
-    },
-    {
-      id: 'e4',
-      source: 't2',
-      target: 'f1',
-      kind: 'success',
-      data: { condition: { type: 'custom', text: '建议已确认' } },
-    },
+    { id: 'e1', source: 's1', target: 't1', kind: 'normal' },
+    { id: 'e2', source: 't1', target: 't2', kind: 'normal' },
+    { id: 'e3', source: 't2', target: 't1', kind: 'exception' },
+    { id: 'e4', source: 't2', target: 'f1', kind: 'normal' },
   ],
 }
 
 describe('convert：持久化格式 <-> 中间形态', () => {
-  it('schema → cells → schema 语义等价（多步骤 + failure 边 + custom 条件）', () => {
+  it('schema → cells → schema 语义等价（多步骤 + 异常出口边 + custom 条件）', () => {
     const cells = schemaToCells(sample)
     const back = graphToSchema({ nodes: cells.nodes, edges: cells.edges, meta: sample.meta })
     expect(back).toEqual(sample)
@@ -118,25 +100,15 @@ describe('convert：持久化格式 <-> 中间形态', () => {
     })
   })
 
-  it('草稿态：条件为 null 时保持 null（start 出边与 failure 边）', () => {
+  it('边只含 id/source/target/kind（无附加数据）', () => {
     const cells = schemaToCells(sample)
-    const byId = new Map(cells.edges.map((edge) => [edge.id, edge]))
-    expect(byId.get('e1')?.condition).toBeNull()
-    const draft = structuredClone(sample)
-    draft.edges.push({ id: 'e5', source: 't1', target: 'f1', kind: 'failure', data: { condition: null } })
-    const back2 = graphToSchema({
-      nodes: schemaToCells(draft).nodes,
-      edges: schemaToCells(draft).edges,
-      meta: draft.meta,
-    })
-    const edge = back2.edges.find((item) => item.id === 'e5')
-    expect(edge).toEqual({
-      id: 'e5',
-      source: 't1',
-      target: 'f1',
-      kind: 'failure',
-      data: { condition: null },
-    })
+    const back = graphToSchema({ nodes: cells.nodes, edges: cells.edges, meta: sample.meta })
+    for (const edge of back.edges) {
+      expect(Object.keys(edge).sort()).toEqual(['id', 'kind', 'source', 'target'])
+    }
+    const byId = new Map(back.edges.map((edge) => [edge.id, edge]))
+    expect(byId.get('e3')?.kind).toBe('exception')
+    expect(byId.get('e1')?.kind).toBe('normal')
   })
 
   it('未提供 meta 时使用默认元信息', () => {

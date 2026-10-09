@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import type { Cell, Edge, Node } from '@antv/x6'
 
-import { mutate, readEdgeCondition, readEdgeKind, requireNodeType } from '@/graph'
+import { mutate, readEdgeKind, requireNodeType } from '@/graph'
 import { createStepId, EDGE_KIND_LABELS, NODE_TYPE_LABELS } from '@/schema'
 import type { EdgeKind, ExitCondition, NodeData, NodeDataMap, ReactStep } from '@/schema'
 import { useGraphRuntime } from '@/stores/graphStore'
@@ -13,7 +13,7 @@ import ConditionEditor from './ConditionEditor.vue'
 /**
  * 属性面板（spec: flow-property-editing）：
  * - 选中任务节点：编辑 ReAct 单元——基础字段 / 步骤序列 / 循环退出条件 / 前提条件 / 异常处理
- * - 选中连线：编辑 kind 与类型化条件
+ * - 选中连线：编辑 kind（普通连线 / 异常出口），无条件下拉
  * - 内容为人工填写的自由文本；修改经 mutate 包装即时生效并纳入撤销
  */
 
@@ -55,7 +55,6 @@ const edgeData = computed(() => {
   if (!current || current.isNode()) return null
   return {
     kind: readEdgeKind(current as Edge),
-    condition: readEdgeCondition(current as Edge),
   }
 })
 
@@ -65,7 +64,7 @@ const cellKindLabel = computed(() => {
   if (current.isNode()) {
     return nodeType.value ? `节点 · ${NODE_TYPE_LABELS[nodeType.value]}` : '节点'
   }
-  return `连线 · ${EDGE_KIND_LABELS[edgeData.value?.kind ?? 'success']}`
+  return `连线 · ${EDGE_KIND_LABELS[edgeData.value?.kind ?? 'normal']}`
 })
 
 // ---- 基础读取 ----
@@ -97,7 +96,7 @@ function writeNodeData(patch: Record<string, unknown>): void {
   }
 }
 
-function writeEdge(next: { kind: EdgeKind; condition: ExitCondition | null }): void {
+function writeEdge(next: { kind: EdgeKind }): void {
   const rt = runtime.value
   const current = cell.value
   if (!rt || !current || current.isNode()) return
@@ -259,23 +258,8 @@ function removeParamRow(stepIndex: number, actionIndex: number, rowIndex: number
 function setEdgeKind(kind: EdgeKind): void {
   const data = edgeData.value
   if (!data || data.kind === kind) return
-  writeEdge({ kind, condition: data.condition })
+  writeEdge({ kind })
 }
-
-function setEdgeCondition(condition: ExitCondition | null): void {
-  const data = edgeData.value
-  if (!data) return
-  writeEdge({ kind: data.kind, condition })
-}
-
-const edgeSourceIsStart = computed(() => {
-  void dataVersion.value
-  const current = cell.value
-  const rt = runtime.value
-  if (!current || current.isNode() || !rt) return false
-  const source = rt.graph.getCellById((current as Edge).getSourceCellId())
-  return source?.isNode() === true && (source as Node).shape === 'flow-start'
-})
 
 // ---- 订阅：cell 数据变更（含外部撤销/重做） ----
 
@@ -557,18 +541,12 @@ watch(
           </select>
         </label>
 
-        <div class="property-panel__field">
-          <span class="property-panel__label">
-            {{ edgeData.kind === 'success' ? '前提条件' : '异常条件（可选）' }}
-          </span>
-          <ConditionEditor :condition="edgeData.condition" @change="setEdgeCondition" />
-        </div>
-
-        <p
-          v-if="edgeData.kind === 'success' && !edgeData.condition && !edgeSourceIsStart"
-          class="property-panel__hint property-panel__hint--warn"
-        >
-          该成功转移尚未设置前提条件，将被校验标记为问题（E5）
+        <p class="property-panel__hint">
+          {{
+            edgeData.kind === 'exception'
+              ? '异常出口：失败时转向该节点（如人工介入），不参与前提条件检查'
+              : '普通连线：节点依次衔接；前提条件在源节点的属性中填写'
+          }}
         </p>
       </template>
     </template>

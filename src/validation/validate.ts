@@ -1,4 +1,4 @@
-import { buildIndex, canReach, findCycles, reachableFrom } from '../analysis'
+import { buildIndex, canReach, reachableFrom } from '../analysis'
 import { CONTROLLABLE_EXIT_TYPES } from '../schema'
 import type { FlowSchema } from '../schema'
 
@@ -7,7 +7,7 @@ import type { Issue } from './types'
 /**
  * 任务流校验（规则语义见 openspec/specs/flow-validation）：
  * - 逐节点：每个任务必须是一个完整的 ReAct 单元（标识/步骤/循环退出条件/前提条件/异常处理）
- * - 顶层：开始、终止路径、失败回退环必须有成功出口、连通性
+ * - 顶层：开始、终止路径、连通性
  *
  * 纯函数：只读 schema，不修改数据；空画布不产生任何问题。
  */
@@ -16,7 +16,6 @@ export function validate(schema: FlowSchema): Issue[] {
 
   const issues: Issue[] = []
   const index = buildIndex(schema.nodes, schema.edges)
-  const nodesById = new Map(schema.nodes.map((node) => [node.id, node]))
 
   const tasks = schema.nodes.filter((node) => node.type === 'task')
   const starts = schema.nodes.filter((node) => node.type === 'start')
@@ -25,10 +24,8 @@ export function validate(schema: FlowSchema): Issue[] {
   const finalIds = finals.map((final) => final.id)
 
   const outgoing = (id: string) => schema.edges.filter((edge) => edge.source === id)
-  const hasSuccessOut = (id: string): boolean =>
-    outgoing(id).some((edge) => edge.kind === 'success')
-  const hasFailureOut = (id: string): boolean =>
-    outgoing(id).some((edge) => edge.kind === 'failure')
+  const hasNormalOut = (id: string): boolean =>
+    outgoing(id).some((edge) => edge.kind === 'normal')
 
   // ---- 逐任务：ReAct 必备要素 ----
   for (const task of tasks) {
@@ -87,12 +84,12 @@ export function validate(schema: FlowSchema): Issue[] {
       })
     }
 
-    // E4 前提条件（有 success 出边才要求）
-    if (hasSuccessOut(task.id) && data.precondition.trim() === '') {
+    // E4 前提条件（有普通出边才要求；仅有异常出口时豁免）
+    if (hasNormalOut(task.id) && data.precondition.trim() === '') {
       issues.push({
         severity: 'error',
         ruleId: 'E4',
-        message: '任务有成功出边但缺少前提条件',
+        message: '任务有普通出边但缺少前提条件',
         cellIds: [task.id],
       })
     }
@@ -104,30 +101,6 @@ export function validate(schema: FlowSchema): Issue[] {
         ruleId: 'W3',
         message: '任务缺少失败反思或重规划',
         cellIds: [task.id],
-      })
-    }
-
-    // W4 失败出口
-    if (hasSuccessOut(task.id) && !hasFailureOut(task.id)) {
-      issues.push({
-        severity: 'warning',
-        ruleId: 'W4',
-        message: '任务未声明失败出口',
-        cellIds: [task.id],
-      })
-    }
-  }
-
-  // ---- E5 成功边条件（start 出边豁免） ----
-  for (const edge of schema.edges) {
-    if (edge.kind !== 'success') continue
-    if (nodesById.get(edge.source)?.type === 'start') continue
-    if (edge.data.condition === null) {
-      issues.push({
-        severity: 'error',
-        ruleId: 'E5',
-        message: 'success 边缺少前提条件（开始节点的出边除外）',
-        cellIds: [edge.id],
       })
     }
   }
@@ -169,26 +142,6 @@ export function validate(schema: FlowSchema): Issue[] {
       message: '没有从开始到结束的路径',
       cellIds: startIds,
     })
-  }
-
-  // ---- E8 失败回退环：必须有一条离开环的成功出口（带条件，才算"能正常退出"） ----
-  for (const cycle of findCycles(index)) {
-    const members = new Set(cycle)
-    const hasSuccessExit = schema.edges.some(
-      (edge) =>
-        members.has(edge.source) &&
-        !members.has(edge.target) &&
-        edge.kind === 'success' &&
-        edge.data.condition !== null,
-    )
-    if (!hasSuccessExit) {
-      issues.push({
-        severity: 'error',
-        ruleId: 'E8',
-        message: '死循环风险：失败回退形成的环没有成功出口',
-        cellIds: cycle,
-      })
-    }
   }
 
   // ---- W5 不可达节点 ----

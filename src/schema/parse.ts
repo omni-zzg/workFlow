@@ -73,12 +73,9 @@ const edgeBase = {
   target: z.string().min(1),
 }
 
-// 条件在草稿态可为 null（由校验规则标记），结构上允许
-const edgeDataZod = z.object({ condition: conditionZod.nullable() })
-
 const edgeZod = z.discriminatedUnion('kind', [
-  z.object({ ...edgeBase, kind: z.literal('success'), data: edgeDataZod }),
-  z.object({ ...edgeBase, kind: z.literal('failure'), data: edgeDataZod }),
+  z.object({ ...edgeBase, kind: z.literal('normal') }),
+  z.object({ ...edgeBase, kind: z.literal('exception') }),
 ])
 
 export const flowSchemaZod = z.object({
@@ -93,7 +90,7 @@ export type ParseFlowSchemaResult =
   | { ok: false; errors: string[] }
 
 const NODE_TYPES: readonly string[] = ['start', 'task', 'final']
-const EDGE_KINDS: readonly string[] = ['success', 'failure']
+const EDGE_KINDS: readonly string[] = ['normal', 'exception']
 const CONDITION_TYPES: readonly string[] = [
   'goal_achieved',
   'max_iterations',
@@ -147,18 +144,6 @@ function collectUnknownTypeErrors(input: unknown): string[] {
       const kind = record.kind
       if (typeof kind === 'string' && !EDGE_KINDS.includes(kind)) {
         errors.push(`edges.${index}.kind：未知的连线类型 "${kind}"`)
-      }
-      const data = record.data
-      if (data && typeof data === 'object') {
-        const condition = (data as Record<string, unknown>).condition
-        if (condition && typeof condition === 'object') {
-          const conditionType = (condition as Record<string, unknown>).type
-          if (typeof conditionType === 'string' && !CONDITION_TYPES.includes(conditionType)) {
-            errors.push(
-              `edges.${index}.data.condition.type：未知的条件类型 "${conditionType}"`,
-            )
-          }
-        }
       }
     }
   })

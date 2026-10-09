@@ -3,7 +3,7 @@ import type { Edge } from '@antv/x6'
 
 import { createGraph } from '@/graph/createGraph'
 import { NODE_TYPES, SHAPE_BY_NODE_TYPE } from '@/graph/shapes'
-import type { ExitCondition, RawEdge, RawNode } from '@/schema'
+import type { RawEdge, RawNode } from '@/schema'
 
 /** jsdom 冒烟测试的共享夹具（仅测试使用，不进入应用包） */
 
@@ -82,7 +82,7 @@ export function makeTestGraph(): { graph: Graph; container: HTMLDivElement } {
   return { graph, container }
 }
 
-/** 最小任务流：start → task → final，含 success 与 failure 边 */
+/** 最小任务流：start → task → final，含普通连线与异常出口 */
 export function sampleRaw(): { nodes: RawNode[]; edges: RawEdge[] } {
   const nodes: RawNode[] = [
     { id: 'n1', nodeType: 'start', x: 10, y: 10, data: { goal: '测试目标' } },
@@ -111,15 +111,9 @@ export function sampleRaw(): { nodes: RawNode[]; edges: RawEdge[] } {
     { id: 'n3', nodeType: 'final', x: 10, y: 400, data: { answer: '答案' } },
   ]
   const edges: RawEdge[] = [
-    { id: 'e1', source: 'n1', target: 'n2', kind: 'success', condition: null },
-    {
-      id: 'e2',
-      source: 'n2',
-      target: 'n3',
-      kind: 'success',
-      condition: { type: 'max_iterations', params: { max: 3 } } satisfies ExitCondition,
-    },
-    { id: 'e3', source: 'n2', target: 'n3', kind: 'failure', condition: null },
+    { id: 'e1', source: 'n1', target: 'n2', kind: 'normal' },
+    { id: 'e2', source: 'n2', target: 'n3', kind: 'normal' },
+    { id: 'e3', source: 'n2', target: 'n3', kind: 'exception' },
   ]
   return { nodes, edges }
 }

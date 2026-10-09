@@ -4,9 +4,9 @@ import { createApp, nextTick } from 'vue'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import { CellStateController } from '@/graph/cellState'
-import { readEdgeCondition, readEdgeKind } from '@/graph/edgeStyle'
+import { readEdgeKind } from '@/graph/edgeStyle'
 import { insertRawGraph } from '@/graph/project'
-import type { RawEdge, RawNode, TaskData } from '@/schema'
+import type { TaskData } from '@/schema'
 import { setGraphRuntime } from '@/stores/graphStore'
 import { initSelectionTracking } from '@/stores/selection'
 import {
@@ -207,85 +207,30 @@ describe('属性面板', () => {
     cleanup()
   })
 
-  it('连线编辑：kind 切换与条件类型化编辑（含边标签同步）（spec 场景）', async () => {
+  it('连线编辑：kind 切换（普通连线 / 异常出口）与样式同步（spec 场景）', async () => {
     const { graph } = makeTestGraph()
     insertRawGraph(graph, sampleRaw())
     await flush()
-    const { host, cleanup } = mountPanel(graph, 'e2') // success + max_iterations(max=3)
+    const { host, cleanup } = mountPanel(graph, 'e2') // 普通连线
     await nextTick()
 
-    const selects = host.querySelectorAll('select')
-    const kindSelect = selects[0] as HTMLSelectElement
-    const conditionSelect = selects[1] as HTMLSelectElement
-    expect(kindSelect.value).toBe('success')
-    expect(conditionSelect.value).toBe('max_iterations')
+    expect(host.querySelectorAll('select')).toHaveLength(1) // 仅 kind 选择，无条件下拉
+    const kindSelect = host.querySelector('select') as HTMLSelectElement
+    expect(kindSelect.value).toBe('normal')
 
-    // 条件改为 timeout → 条件数据与边标签即时同步
-    setValue(conditionSelect, 'timeout')
-    await nextTick()
+    // 改为异常出口 → 异常样式
     const edge = graph.getCellById('e2') as Edge
-    expect(readEdgeCondition(edge)).toEqual({ type: 'timeout', params: { seconds: 30 } })
-    expect(labelTexts(edge)).toEqual(['超时 30s'])
-
-    // 改为 failure → 异常样式
-    setValue(kindSelect, 'failure')
+    setValue(kindSelect, 'exception')
     await nextTick()
-    expect(readEdgeKind(edge)).toBe('failure')
+    expect(readEdgeKind(edge)).toBe('exception')
     expect(edge.attr('line/strokeDasharray')).toBe('6 4')
+    expect(labelTexts(edge)).toEqual(['异常'])
 
     graph.undo()
     await nextTick()
-    expect(readEdgeKind(edge)).toBe('success')
+    expect(readEdgeKind(edge)).toBe('normal')
+    expect(labelTexts(edge)).toHaveLength(0)
 
     cleanup()
-  })
-
-  it('成功边未设前提条件时给出 E5 提示（start 出边豁免）', async () => {
-    function makeRaw(): { nodes: RawNode[]; edges: RawEdge[] } {
-      const nodes: RawNode[] = [
-        { id: 's', nodeType: 'start', x: 0, y: 0, data: { goal: 'g' } },
-        {
-          id: 't',
-          nodeType: 'task',
-          x: 0,
-          y: 100,
-          data: {
-            name: '任务',
-            goal: '目标',
-            input: '',
-            steps: [
-              { id: 't-s1', thought: '想', actions: [{ name: 'a', params: {} }], observation: '看' },
-            ],
-            loop: { exitConditions: [{ type: 'goal_achieved' }] },
-            precondition: '前提',
-            onFailure: { reflection: '反思', replan: '重规划', maxRetries: 1 },
-          },
-        },
-        { id: 'f', nodeType: 'final', x: 0, y: 200, data: { answer: 'a' } },
-      ]
-      const edges: RawEdge[] = [
-        { id: 'e1', source: 's', target: 't', kind: 'success', condition: null },
-        { id: 'e2', source: 't', target: 'f', kind: 'success', condition: null },
-      ]
-      return { nodes, edges }
-    }
-
-    // 场景 A：task → final 的 success 边未设条件 → 有 E5 提示
-    const first = makeTestGraph()
-    insertRawGraph(first.graph, makeRaw())
-    await flush()
-    const successTask = mountPanel(first.graph, 'e2')
-    await nextTick()
-    expect(successTask.host.textContent).toContain('E5')
-    successTask.cleanup()
-
-    // 场景 B：start 出边豁免 → 无提示
-    const second = makeTestGraph()
-    insertRawGraph(second.graph, makeRaw())
-    await flush()
-    const startEdge = mountPanel(second.graph, 'e1')
-    await nextTick()
-    expect(startEdge.host.textContent).not.toContain('E5')
-    startEdge.cleanup()
   })
 })
