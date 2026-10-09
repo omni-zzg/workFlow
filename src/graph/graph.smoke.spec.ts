@@ -89,6 +89,7 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     const { graph } = makeTestGraph()
     insertRawGraph(graph, sampleRaw())
     await flush()
+    await flush() // 工具渲染随视图异步刷新，并行负载下多等一拍
 
     const edge = graph.getCellById('e2') as Edge
     expect(edge.getTools()?.items).toHaveLength(2)
