@@ -8,7 +8,6 @@ import {
   deleteDocument,
   detachCurrentDocument,
   openDocument,
-  renameDocument,
   useDocuments,
 } from '@/stores/documents'
 import { requireGraphRuntime } from '@/stores/graphStore'
@@ -16,18 +15,16 @@ import { validateNow } from '@/stores/validation'
 
 /**
  * 文档管理对话框（spec: flow-document-management）：
- * 查看已保存的流程图（名称/更新时间），支持打开、新建空白、重命名、删除。
- * 切换/新建前若存在未保存修改会先确认。
+ * 查看已保存的流程图（名称/更新时间），支持打开、新建空白与删除；
+ * 重命名在页面头部点击名称内联完成。切换/新建前若存在未保存修改会先确认。
  */
 
 const emit = defineEmits<{ close: [] }>()
 
 const { documents, currentId } = useDocuments()
-const { meta, dirty, setMeta, markClean } = useDocument()
+const { dirty, setMeta, markClean } = useDocument()
 
 const errors = ref<string[]>([])
-const editingId = ref<string | null>(null)
-const editingName = ref('')
 
 function formatTime(timestamp: number): string {
   return new Date(timestamp).toLocaleString()
@@ -60,22 +57,6 @@ function createNew(): void {
   markClean()
   validateNow()
   emit('close')
-}
-
-function startRename(id: string, name: string): void {
-  editingId.value = id
-  editingName.value = name
-}
-
-function confirmRename(): void {
-  const id = editingId.value
-  if (!id) return
-  if (!renameDocument(id, editingName.value)) return
-  // 重命名当前文档时同步流程元信息（后续保存沿用新名称）
-  if (id === currentId.value) {
-    setMeta({ ...meta.value, name: editingName.value.trim() })
-  }
-  editingId.value = null
 }
 
 function remove(id: string, name: string): void {
@@ -111,39 +92,24 @@ function remove(id: string, name: string): void {
           class="doc-dialog__item"
           :class="{ 'doc-dialog__item--current': doc.id === currentId }"
         >
-          <template v-if="editingId === doc.id">
-            <input
-              v-model="editingName"
-              class="doc-dialog__input"
-              type="text"
-              @keydown.enter="confirmRename"
-            />
-            <button type="button" class="doc-dialog__btn" @click="confirmRename">确定</button>
-            <button type="button" class="doc-dialog__btn" @click="editingId = null">取消</button>
-          </template>
-          <template v-else>
-            <div class="doc-dialog__info">
-              <span class="doc-dialog__name">
-                {{ doc.name }}
-                <span v-if="doc.id === currentId" class="doc-dialog__badge">当前</span>
-              </span>
-              <span class="doc-dialog__time">{{ formatTime(doc.updatedAt) }}</span>
-            </div>
-            <button
-              type="button"
-              class="doc-dialog__btn"
-              :disabled="doc.id === currentId"
-              @click="open(doc.id)"
-            >
-              打开
-            </button>
-            <button type="button" class="doc-dialog__btn" @click="startRename(doc.id, doc.name)">
-              重命名
-            </button>
-            <button type="button" class="doc-dialog__btn" @click="remove(doc.id, doc.name)">
-              删除
-            </button>
-          </template>
+          <div class="doc-dialog__info">
+            <span class="doc-dialog__name">
+              {{ doc.name }}
+              <span v-if="doc.id === currentId" class="doc-dialog__badge">当前</span>
+            </span>
+            <span class="doc-dialog__time">{{ formatTime(doc.updatedAt) }}</span>
+          </div>
+          <button
+            type="button"
+            class="doc-dialog__btn"
+            :disabled="doc.id === currentId"
+            @click="open(doc.id)"
+          >
+            打开
+          </button>
+          <button type="button" class="doc-dialog__btn" @click="remove(doc.id, doc.name)">
+            删除
+          </button>
         </li>
       </ul>
 
@@ -263,15 +229,6 @@ function remove(id: string, name: string): void {
 .doc-dialog__time {
   font-size: 11px;
   color: var(--color-text-secondary);
-}
-
-.doc-dialog__input {
-  flex: 1;
-  min-width: 0;
-  padding: 5px 8px;
-  font-size: 13px;
-  border: 1px solid var(--color-primary);
-  border-radius: 6px;
 }
 
 .doc-dialog__errors {

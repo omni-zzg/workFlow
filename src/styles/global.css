@@ -57,6 +57,24 @@ body {
   color: var(--color-text-secondary);
   white-space: nowrap;
   text-overflow: ellipsis;
+  cursor: text;
+}
+
+.app-header__doc:hover {
+  color: var(--color-text);
+}
+
+.app-header__name-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--color-text);
+  background: #fff;
+  border: 1px solid var(--color-primary);
+  border-radius: 6px;
+  outline: none;
 }
 
 .app-body {
