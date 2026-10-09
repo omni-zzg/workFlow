@@ -217,7 +217,7 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     graph.dispose()
   })
 
-  it('任务卡片常驻 ReAct 骨架：内容随数据更新（含退出条件徽标与占位）', async () => {
+  it('任务卡片常驻 ReAct 内容：完整步骤与异常处理可见，随数据即时刷新', async () => {
     const { graph } = makeTestGraph()
     insertRawGraph(graph, sampleRaw())
     await flush()
@@ -228,7 +228,7 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     const app = createApp(TaskNode, { node, graph })
     app.mount(host)
 
-    // 骨架摘要
+    // 骨架内容
     expect(host.textContent).toContain('测试任务')
     expect(host.textContent).toContain('输入')
     expect(host.textContent).toContain('思考')
@@ -236,23 +236,53 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     expect(host.textContent).toContain('目标达成') // 退出条件徽标
     expect(host.textContent).toContain('前提')
     expect(host.textContent).toContain('失败重试 ≤3')
+    expect(host.textContent).toContain('异常处理') // 异常处理区块
+    expect(host.textContent).toContain('反思')
+    expect(host.textContent).toContain('重规划')
 
-    // 更新数据（names / 退出条件）→ 即时刷新
+    // 更新数据：3 个步骤全部展示（不截断）、异常处理与退出条件即时刷新
     const current = node.getData<Record<string, unknown>>()
     node.replaceData({
       ...current,
       name: '新任务名',
+      steps: [
+        {
+          id: 's1',
+          thought: '第一步思考',
+          actions: [{ name: 'a1', params: {} }],
+          observation: '第一步观察',
+        },
+        { id: 's2', thought: '第二步思考', actions: [], observation: '第二步观察' },
+        {
+          id: 's3',
+          thought: '第三步思考',
+          actions: [{ name: 'a3', params: {} }],
+          observation: '第三步观察',
+        },
+      ],
       loop: { exitConditions: [{ type: 'error' }] },
     })
     await nextTick()
     expect(host.textContent).toContain('新任务名')
     expect(host.textContent).toContain('异常终止')
     expect(host.textContent).not.toContain('目标达成')
+    expect(host.textContent).toContain('共 3 步')
+    const thoughtLabels = [...host.querySelectorAll('.flow-task__line b')].filter(
+      (element) => element.textContent === '思考',
+    )
+    expect(thoughtLabels).toHaveLength(3) // 3 个步骤全部展示（不截断）
+    expect(host.textContent).toContain('第三步思考')
+    expect(host.textContent).toContain('第三步观察')
 
-    // 清空退出条件 → 占位
-    node.replaceData({ ...node.getData<Record<string, unknown>>(), loop: { exitConditions: [] } })
+    // 清空退出条件与步骤 → 占位
+    node.replaceData({
+      ...node.getData<Record<string, unknown>>(),
+      steps: [],
+      loop: { exitConditions: [] },
+    })
     await nextTick()
     expect(host.textContent).toContain('未定义退出条件')
+    expect(host.textContent).toContain('未定义步骤')
 
     app.unmount()
     graph.dispose()
