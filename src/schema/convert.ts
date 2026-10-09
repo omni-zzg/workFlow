@@ -21,6 +21,9 @@ export function graphToSchema(graph: RawGraph): FlowSchema {
         id: node.id,
         type: node.nodeType,
         position: { x: node.x, y: node.y },
+        ...(node.width != null && node.height != null
+          ? { size: { width: node.width, height: node.height } }
+          : {}),
         data: node.data,
       }) as FlowNode,
   )
@@ -51,6 +54,7 @@ export function schemaToCells(schema: FlowSchema): { nodes: RawNode[]; edges: Ra
         nodeType: node.type,
         x: node.position.x,
         y: node.position.y,
+        ...(node.size ? { width: node.size.width, height: node.size.height } : {}),
         data: node.data,
       }) as RawNode,
   )

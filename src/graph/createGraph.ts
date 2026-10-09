@@ -1,6 +1,7 @@
 import { Graph } from '@antv/x6'
 import type { Edge, Node } from '@antv/x6'
 import { Clipboard } from '@antv/x6-plugin-clipboard'
+import { Transform } from '@antv/x6-plugin-transform'
 import { History } from '@antv/x6-plugin-history'
 import { Keyboard } from '@antv/x6-plugin-keyboard'
 import { Selection } from '@antv/x6-plugin-selection'
@@ -136,6 +137,13 @@ export function createGraph(container: HTMLElement, options: CreateGraphOptions 
       // 框选需按住 Shift（空白处直接拖拽为平移画布）
       modifiers: 'shift',
       showNodeSelectionBox: true,
+    }),
+  )
+  graph.use(
+    new Transform({
+      // 选中节点后拖拽控制点调整大小（尺寸随文档持久化，见 spec: flow-canvas-editing）
+      resizing: { enabled: true, minWidth: 140, minHeight: 60, preserveAspectRatio: false },
+      rotating: false,
     }),
   )
   graph.use(new Snapline({ enabled: true, sharp: true }))

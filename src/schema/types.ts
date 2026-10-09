@@ -88,9 +88,15 @@ export interface NodeDataMap {
 
 export type NodeData = NodeDataMap[NodeType]
 
+/** 节点尺寸（可选持久化；缺省按类型给定） */
+export interface Size {
+  width: number
+  height: number
+}
+
 /** 节点：type 判别 data（判别联合） */
 export type FlowNode = {
-  [T in NodeType]: { id: string; type: T; position: XY; data: NodeDataMap[T] }
+  [T in NodeType]: { id: string; type: T; position: XY; size?: Size; data: NodeDataMap[T] }
 }[NodeType]
 
 /** 边：普通连线（依次衔接）/ 异常出口（失败时转向其他节点，可选）；均无附加数据 */
@@ -120,7 +126,15 @@ export interface FlowSchema {
  * `graphToSchema` / `schemaToCells` 在此形态与持久化格式之间转换。
  */
 export type RawNode = {
-  [T in NodeType]: { id: string; nodeType: T; x: number; y: number; data: NodeDataMap[T] }
+  [T in NodeType]: {
+    id: string
+    nodeType: T
+    x: number
+    y: number
+    width?: number
+    height?: number
+    data: NodeDataMap[T]
+  }
 }[NodeType]
 
 export interface RawEdge {

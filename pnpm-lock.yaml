@@ -29,9 +29,15 @@ importers:
       '@antv/x6-plugin-snapline':
         specifier: ^2.0.0
         version: 2.1.7(@antv/x6@2.19.2)
+      '@antv/x6-plugin-transform':
+        specifier: ^2.1.8
+        version: 2.1.8(@antv/x6@2.19.2)
       '@antv/x6-vue-shape':
         specifier: ^2.0.0
         version: 2.1.2(@antv/x6@2.19.2)(vue@3.5.43(typescript@5.9.3))
+      html-to-image:
+        specifier: ^1.11.13
+        version: 1.11.13
       vue:
         specifier: ^3.5.0
         version: 3.5.43(typescript@5.9.3)
@@ -96,6 +102,11 @@ packages:
 
   '@antv/x6-plugin-snapline@2.1.7':
     resolution: {integrity: sha512-AsysoCb9vES0U2USNhEpYuO/W8I0aYfkhlbee5Kt4NYiMfQfZKQyqW/YjDVaS2pm38C1NKu1LdPVk/BBr4CasA==}
+    peerDependencies:
+      '@antv/x6': ^2.x
+
+  '@antv/x6-plugin-transform@2.1.8':
+    resolution: {integrity: sha512-GvJuiJ4BKp0H7+qx3R1I+Vzbw5gXp9+oByXo/WyVxE3urOC7LC5sqnaDfIjyYMN6ROLPYPZraLSeSyYBgMgcDw==}
     peerDependencies:
       '@antv/x6': ^2.x
 
@@ -678,6 +689,9 @@ packages:
     resolution: {integrity: sha512-UikN5yr7xsCDAq87Or5or0PAlD3HJJOKVzM05az588WnpDJ4Ux7a2A53Qi6gofGg2/EtvF/H4hCi/TXfCW4Y6w==}
     engines: {node: ^22.13.0 || >=24.0.0}
 
+  html-to-image@1.11.13:
+    resolution: {integrity: sha512-cuOPoI7WApyhBElTTb9oqsawRvZ0rHhaHwghRLlTuffoD1B2aDemlCruLeZrUIIdvG7gs9xeELEPm6PhuASqrg==}
+
   is-potential-custom-element-name@1.0.1:
     resolution: {integrity: sha512-bCYeRA2rVibKZd+s2625gGnGF/t7DSqDs4dP7CrLA1m7jKWz6pps0LpYLJN8Q64HtmPKJ1hrN3nzPNKFEKOUiQ==}
 
@@ -996,6 +1010,10 @@ snapshots:
       '@antv/x6': 2.19.2
 
   '@antv/x6-plugin-snapline@2.1.7(@antv/x6@2.19.2)':
+    dependencies:
+      '@antv/x6': 2.19.2
+
+  '@antv/x6-plugin-transform@2.1.8(@antv/x6@2.19.2)':
     dependencies:
       '@antv/x6': 2.19.2
 
@@ -1465,6 +1483,8 @@ snapshots:
       '@exodus/bytes': 1.16.0
     transitivePeerDependencies:
       - '@noble/hashes'
+
+  html-to-image@1.11.13: {}
 
   is-potential-custom-element-name@1.0.1: {}
 

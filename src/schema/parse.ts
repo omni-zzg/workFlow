@@ -46,23 +46,28 @@ const taskDataZod = z.object({
   }),
 })
 
+const nodeSizeZod = z.object({ width: z.number(), height: z.number() }).optional()
+
 const nodeZod = z.discriminatedUnion('type', [
   z.object({
     id: z.string().min(1),
     type: z.literal('start'),
     position: positionZod,
+    size: nodeSizeZod,
     data: z.object({ goal: z.string() }),
   }),
   z.object({
     id: z.string().min(1),
     type: z.literal('task'),
     position: positionZod,
+    size: nodeSizeZod,
     data: taskDataZod,
   }),
   z.object({
     id: z.string().min(1),
     type: z.literal('final'),
     position: positionZod,
+    size: nodeSizeZod,
     data: z.object({ answer: z.string() }),
   }),
 ])

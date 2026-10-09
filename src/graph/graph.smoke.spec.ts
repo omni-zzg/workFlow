@@ -127,6 +127,27 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     graph.dispose()
   })
 
+  it('节点可调整尺寸：resize 后投影与导出携带 size，缺省节点不写 size', async () => {
+    const { graph } = makeTestGraph()
+    insertRawGraph(graph, sampleRaw())
+    await flush()
+
+    const node = graph.getCellById('n2') as Node
+    node.resize(320, 240)
+    await flush()
+
+    const projected = projectRawGraph(graph).nodes.find((item) => item.id === 'n2')
+    expect(projected).toMatchObject({ width: 320, height: 240 })
+
+    const schema = graphToSchema(projectRawGraph(graph))
+    const resized = schema.nodes.find((item) => item.id === 'n2') as {
+      size?: { width: number; height: number }
+    }
+    expect(resized.size).toEqual({ width: 320, height: 240 })
+
+    graph.dispose()
+  })
+
   it('态标注：类名可应用、可清除（cellView 容器）', async () => {
     const { graph } = makeTestGraph()
     insertRawGraph(graph, sampleRaw())

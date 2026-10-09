@@ -50,6 +50,7 @@ const sample: FlowSchema = {
       id: 't2',
       type: 'task',
       position: { x: 380, y: 120 },
+      size: { width: 320, height: 220 },
       data: {
         name: '生成建议',
         goal: '基于天气生成出行建议',

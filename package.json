@@ -18,7 +18,9 @@
     "@antv/x6-plugin-keyboard": "^2.0.0",
     "@antv/x6-plugin-selection": "^2.0.0",
     "@antv/x6-plugin-snapline": "^2.0.0",
+    "@antv/x6-plugin-transform": "^2.1.8",
     "@antv/x6-vue-shape": "^2.0.0",
+    "html-to-image": "^1.11.13",
     "vue": "^3.5.0",
     "zod": "^4.0.0"
   },

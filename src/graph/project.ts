@@ -38,11 +38,19 @@ export function projectRawGraph(graph: Graph, meta: FlowMeta = DEFAULT_META): Ra
   const nodes = graph.getNodes().map((node): RawNode => {
     const nodeType = requireNodeType(node)
     const position = node.getPosition()
+    const size = node.getSize()
+    const defaultSize = NODE_SIZE_BY_TYPE[nodeType]
+    // 尺寸与类型默认一致时不写出（保持导出精简；调整过尺寸才持久化）
+    const sizeFields =
+      size.width !== defaultSize.width || size.height !== defaultSize.height
+        ? { width: size.width, height: size.height }
+        : {}
     return {
       id: node.id,
       nodeType,
       x: position.x,
       y: position.y,
+      ...sizeFields,
       data: node.getData<NodeData>(),
     } as RawNode
   })
@@ -66,8 +74,8 @@ export function createNodeMetadata(raw: RawNode): Node.Metadata {
     shape: SHAPE_BY_NODE_TYPE[raw.nodeType],
     x: raw.x,
     y: raw.y,
-    width: size.width,
-    height: size.height,
+    width: raw.width ?? size.width,
+    height: raw.height ?? size.height,
     data: raw.data,
   }
 }
