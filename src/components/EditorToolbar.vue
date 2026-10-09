@@ -207,7 +207,11 @@ watch(showExport, (open) => {
     <button
       type="button"
       class="editor-toolbar__btn"
-      title="水平居中：选中节点对齐到同一水平中线"
+      :title="
+        selectedNodeCount < 2
+          ? '水平居中：需选中至少 2 个节点（Shift 或 Ctrl+点击加选，Shift 拖拽空白处框选）'
+          : '水平居中：选中节点对齐到同一水平中线'
+      "
       :disabled="selectedNodeCount < 2"
       @click="alignNodes('h-center')"
     >
@@ -216,7 +220,11 @@ watch(showExport, (open) => {
     <button
       type="button"
       class="editor-toolbar__btn"
-      title="垂直居中：选中节点对齐到同一垂直中线"
+      :title="
+        selectedNodeCount < 2
+          ? '垂直居中：需选中至少 2 个节点（Shift 或 Ctrl+点击加选，Shift 拖拽空白处框选）'
+          : '垂直居中：选中节点对齐到同一垂直中线'
+      "
       :disabled="selectedNodeCount < 2"
       @click="alignNodes('v-center')"
     >
@@ -225,7 +233,11 @@ watch(showExport, (open) => {
     <button
       type="button"
       class="editor-toolbar__btn"
-      title="水平等距分布：首尾不动，横向间隙均分"
+      :title="
+        selectedNodeCount < 3
+          ? '水平等距分布：需选中至少 3 个节点（Shift 或 Ctrl+点击加选，Shift 拖拽空白处框选）'
+          : '水平等距分布：首尾不动，横向间隙均分'
+      "
       :disabled="selectedNodeCount < 3"
       @click="alignNodes('h-distribute')"
     >
@@ -234,7 +246,11 @@ watch(showExport, (open) => {
     <button
       type="button"
       class="editor-toolbar__btn"
-      title="垂直等距分布：首尾不动，纵向间隙均分"
+      :title="
+        selectedNodeCount < 3
+          ? '垂直等距分布：需选中至少 3 个节点（Shift 或 Ctrl+点击加选，Shift 拖拽空白处框选）'
+          : '垂直等距分布：首尾不动，纵向间隙均分'
+      "
       :disabled="selectedNodeCount < 3"
       @click="alignNodes('v-distribute')"
     >

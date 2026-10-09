@@ -136,6 +136,8 @@ export function createGraph(container: HTMLElement, options: CreateGraphOptions 
       rubberband: true,
       // 框选需按住 Shift（空白处直接拖拽为平移画布）
       modifiers: 'shift',
+      // 多选也统一为 Shift+点击（Ctrl/⌘+点击同样可用）
+      multipleSelectionModifiers: ['shift', 'ctrl', 'meta'],
       showNodeSelectionBox: true,
     }),
   )
