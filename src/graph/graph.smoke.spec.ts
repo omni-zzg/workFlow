@@ -68,6 +68,23 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     graph.dispose()
   })
 
+  it('节点带四向连接点：视图存在 4 个 magnet 元素（鼠标由此创建连线）', async () => {
+    const { graph } = makeTestGraph()
+    insertRawGraph(graph, sampleRaw())
+    await flush()
+
+    const view = graph.findViewByCell('n2')
+    expect(view).not.toBeNull()
+    const magnets = [...view!.container.querySelectorAll('[magnet]')]
+    expect(magnets).toHaveLength(4)
+    const portIds = magnets
+      .map((element) => element.closest('[port]')?.getAttribute('port'))
+      .sort()
+    expect(portIds).toEqual(['port-bottom', 'port-left', 'port-right', 'port-top'])
+
+    graph.dispose()
+  })
+
   it('态标注：类名可应用、可清除（cellView 容器）', async () => {
     const { graph } = makeTestGraph()
     insertRawGraph(graph, sampleRaw())

@@ -1,3 +1,5 @@
+import type { Node } from '@antv/x6'
+
 import type { NodeType } from '@/schema'
 
 /**
@@ -22,3 +24,35 @@ export const NODE_SIZE_BY_TYPE: Record<NodeType, { width: number; height: number
 }
 
 export const NODE_TYPES: readonly NodeType[] = ['start', 'task', 'final']
+
+/** 连接点样式：白色小圆点、悬停可辨（鼠标由此拖出连线） */
+const PORT_BODY_ATTRS = {
+  r: 5,
+  magnet: true,
+  stroke: '#94a3b8',
+  strokeWidth: 1.5,
+  fill: '#ffffff',
+  style: { cursor: 'crosshair' },
+}
+
+/**
+ * 节点连接点（spec: flow-canvas-editing「从节点的连接点拖拽创建连线」/ design D8）：
+ * 四向各一个；由 shape 注册提供、随节点创建生效，不进入持久化格式（与节点尺寸同理）。
+ */
+export function createNodePorts(): Node.Metadata['ports'] {
+  const group = { attrs: { circle: PORT_BODY_ATTRS } }
+  return {
+    groups: {
+      top: { position: 'top', ...group },
+      right: { position: 'right', ...group },
+      bottom: { position: 'bottom', ...group },
+      left: { position: 'left', ...group },
+    },
+    items: [
+      { id: 'port-top', group: 'top' },
+      { id: 'port-right', group: 'right' },
+      { id: 'port-bottom', group: 'bottom' },
+      { id: 'port-left', group: 'left' },
+    ],
+  }
+}

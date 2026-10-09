@@ -2,7 +2,7 @@ import { Graph } from '@antv/x6'
 import type { Edge } from '@antv/x6'
 
 import { createGraph } from '@/graph/createGraph'
-import { NODE_TYPES, SHAPE_BY_NODE_TYPE } from '@/graph/shapes'
+import { NODE_TYPES, SHAPE_BY_NODE_TYPE, createNodePorts } from '@/graph/shapes'
 import type { RawEdge, RawNode } from '@/schema'
 
 /** jsdom 冒烟测试的共享夹具（仅测试使用，不进入应用包） */
@@ -68,10 +68,14 @@ export function installJsdomPolyfills(): void {
   }
 }
 
-/** 真实节点渲染（vue-shape）由 registerNodes 注册；测试仅为投影逻辑提供等价 shape */
+/** 真实节点渲染（vue-shape）由 registerNodes 注册；测试仅为投影逻辑提供等价 shape（含连接点） */
 export function registerStubShapes(): void {
   for (const type of NODE_TYPES) {
-    Graph.registerNode(SHAPE_BY_NODE_TYPE[type], { inherit: 'rect', width: 100, height: 40 }, true)
+    Graph.registerNode(
+      SHAPE_BY_NODE_TYPE[type],
+      { inherit: 'rect', width: 100, height: 40, ports: createNodePorts() },
+      true,
+    )
   }
 }
 

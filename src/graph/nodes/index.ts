@@ -3,7 +3,7 @@ import type { Component } from 'vue'
 
 import type { NodeType } from '@/schema'
 
-import { NODE_SIZE_BY_TYPE, NODE_TYPES, SHAPE_BY_NODE_TYPE } from '../shapes'
+import { NODE_SIZE_BY_TYPE, NODE_TYPES, SHAPE_BY_NODE_TYPE, createNodePorts } from '../shapes'
 import FinalNode from './FinalNode.vue'
 import StartNode from './StartNode.vue'
 import TaskNode from './TaskNode.vue'
@@ -27,6 +27,7 @@ export function registerFlowNodes(): void {
       width: size.width,
       height: size.height,
       component: COMPONENTS[type],
+      ports: createNodePorts(),
     })
   }
 }
