@@ -298,7 +298,7 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     app.mount(host)
 
     const buttons = host.querySelectorAll('button')
-    expect(buttons.length).toBe(4) // 三类节点 + 插入任务流模板
+    expect(buttons.length).toBe(5) // 三类节点 + 竖向/横向模板
     ;(buttons[1] as HTMLButtonElement).click() // 任务
     await flush()
 
@@ -360,29 +360,52 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     graph.dispose()
   })
 
-  it('任务流模板：开始 → 任务1 → 任务2 → 结束（三条普通连线）且零校验问题', () => {
-    const cells = buildReactTemplateCells()
-    expect(cells.nodes).toHaveLength(4)
-    expect(cells.nodes.map((node) => node.nodeType)).toEqual(['start', 'task', 'task', 'final'])
-    expect(cells.edges).toHaveLength(3)
-    expect(cells.edges.every((edge) => edge.kind === 'normal')).toBe(true)
-    expect(cells.edges.map((edge) => `${edge.source}->${edge.target}`)).toEqual([
+  it('任务流模板：竖向与横向两种布局，均零校验问题', () => {
+    const vertical = buildReactTemplateCells()
+    expect(vertical.nodes).toHaveLength(4)
+    expect(vertical.nodes.map((node) => node.nodeType)).toEqual(['start', 'task', 'task', 'final'])
+    expect(vertical.edges).toHaveLength(3)
+    expect(vertical.edges.every((edge) => edge.kind === 'normal')).toBe(true)
+    expect(vertical.edges.map((edge) => `${edge.source}->${edge.target}`)).toEqual([
       'tpl-start->tpl-task-1',
       'tpl-task-1->tpl-task-2',
       'tpl-task-2->tpl-final',
     ])
+    // 竖向布局走缺省连接点（源出底部、目标入顶部）
+    expect(vertical.edges.every((edge) => edge.sourcePort === undefined)).toBe(true)
+    expect(
+      validate(graphToSchema({ nodes: vertical.nodes, edges: vertical.edges, meta: vertical.meta })),
+    ).toEqual([])
 
-    const schema = graphToSchema({ nodes: cells.nodes, edges: cells.edges, meta: cells.meta })
-    expect(validate(schema)).toEqual([])
+    // 横向布局：节点从左到右依次排列，连线走「右侧 → 左侧」连接点
+    const horizontal = buildReactTemplateCells('', 'horizontal')
+    const xOf = (id: string): number => horizontal.nodes.find((node) => node.id === id)!.x
+    expect(xOf('tpl-start')).toBeLessThan(xOf('tpl-task-1'))
+    expect(xOf('tpl-task-1')).toBeLessThan(xOf('tpl-task-2'))
+    expect(xOf('tpl-task-2')).toBeLessThan(xOf('tpl-final'))
+    expect(
+      horizontal.edges.every(
+        (edge) => edge.sourcePort === 'port-right' && edge.targetPort === 'port-left',
+      ),
+    ).toBe(true)
+    expect(
+      validate(
+        graphToSchema({ nodes: horizontal.nodes, edges: horizontal.edges, meta: horizontal.meta }),
+      ),
+    ).toEqual([])
   })
 
-  it('插入模板：可重复插入且 id 不冲突', async () => {
+  it('插入模板：可重复插入且 id 不冲突；横向模板端点走左右连接点', async () => {
     const { graph } = makeTestGraph()
     insertReactTemplate(graph)
-    insertReactTemplate(graph)
+    insertReactTemplate(graph, 'horizontal')
     await flush()
     expect(graph.getNodes()).toHaveLength(8)
     expect(graph.getEdges()).toHaveLength(6)
+    const rightPortEdges = graph
+      .getEdges()
+      .filter((edge) => (edge.getSource() as { port?: string }).port === 'port-right')
+    expect(rightPortEdges).toHaveLength(3)
     graph.dispose()
   })
 })

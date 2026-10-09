@@ -34,6 +34,8 @@ export function graphToSchema(graph: RawGraph): FlowSchema {
       source: edge.source,
       target: edge.target,
       kind: edge.kind,
+      ...(edge.sourcePort ? { sourcePort: edge.sourcePort } : {}),
+      ...(edge.targetPort ? { targetPort: edge.targetPort } : {}),
     }),
   )
 
@@ -65,6 +67,8 @@ export function schemaToCells(schema: FlowSchema): { nodes: RawNode[]; edges: Ra
       source: edge.source,
       target: edge.target,
       kind: edge.kind,
+      ...(edge.sourcePort ? { sourcePort: edge.sourcePort } : {}),
+      ...(edge.targetPort ? { targetPort: edge.targetPort } : {}),
     }),
   )
 

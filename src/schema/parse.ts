@@ -76,6 +76,8 @@ const edgeBase = {
   id: z.string().min(1),
   source: z.string().min(1),
   target: z.string().min(1),
+  sourcePort: z.string().optional(),
+  targetPort: z.string().optional(),
 }
 
 const edgeZod = z.discriminatedUnion('kind', [

@@ -56,11 +56,15 @@ export function projectRawGraph(graph: Graph, meta: FlowMeta = DEFAULT_META): Ra
   })
 
   const edges = graph.getEdges().map((edge): RawEdge => {
+    const sourcePort = (edge.getSource() as { port?: string }).port
+    const targetPort = (edge.getTarget() as { port?: string }).port
     return {
       id: edge.id,
       source: edge.getSourceCellId(),
       target: edge.getTargetCellId(),
       kind: readEdgeKind(edge),
+      ...(sourcePort ? { sourcePort } : {}),
+      ...(targetPort ? { targetPort } : {}),
     }
   })
 
@@ -83,9 +87,9 @@ export function createNodeMetadata(raw: RawNode): Node.Metadata {
 export function createEdgeMetadata(raw: RawEdge): Edge.Metadata {
   return {
     id: raw.id,
-    // 端点固定到具体连接点（源出底部、目标入顶部），避免随布局自动切换侧
-    source: { cell: raw.source, port: NODE_PORT_IDS.bottom },
-    target: { cell: raw.target, port: NODE_PORT_IDS.top },
+    // 端点固定到具体连接点（缺省：源出底部、目标入顶部），避免随布局自动切换侧
+    source: { cell: raw.source, port: raw.sourcePort ?? NODE_PORT_IDS.bottom },
+    target: { cell: raw.target, port: raw.targetPort ?? NODE_PORT_IDS.top },
     data: { kind: raw.kind } satisfies EdgeCellData,
     tools: createEdgeEndpointTools(),
   }

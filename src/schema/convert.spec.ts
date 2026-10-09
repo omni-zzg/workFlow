@@ -69,7 +69,14 @@ const sample: FlowSchema = {
     { id: 'e1', source: 's1', target: 't1', kind: 'normal' },
     { id: 'e2', source: 't1', target: 't2', kind: 'normal' },
     { id: 'e3', source: 't2', target: 't1', kind: 'exception' },
-    { id: 'e4', source: 't2', target: 'f1', kind: 'normal' },
+    {
+      id: 'e4',
+      source: 't2',
+      target: 'f1',
+      kind: 'normal',
+      sourcePort: 'port-right',
+      targetPort: 'port-left',
+    },
   ],
 }
 
@@ -101,15 +108,18 @@ describe('convert：持久化格式 <-> 中间形态', () => {
     })
   })
 
-  it('边只含 id/source/target/kind（无附加数据）', () => {
+  it('边只含 id/source/target/kind（+ 可选端口）；无端口边不写附加数据', () => {
     const cells = schemaToCells(sample)
     const back = graphToSchema({ nodes: cells.nodes, edges: cells.edges, meta: sample.meta })
-    for (const edge of back.edges) {
-      expect(Object.keys(edge).sort()).toEqual(['id', 'kind', 'source', 'target'])
-    }
     const byId = new Map(back.edges.map((edge) => [edge.id, edge]))
+
+    expect(Object.keys(byId.get('e1')!).sort()).toEqual(['id', 'kind', 'source', 'target'])
     expect(byId.get('e3')?.kind).toBe('exception')
-    expect(byId.get('e1')?.kind).toBe('normal')
+    // 带端口持久化的边（横向连线等）保留端点连接点
+    expect(byId.get('e4')).toMatchObject({
+      sourcePort: 'port-right',
+      targetPort: 'port-left',
+    })
   })
 
   it('未提供 meta 时使用默认元信息', () => {

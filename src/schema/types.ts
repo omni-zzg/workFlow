@@ -99,12 +99,17 @@ export type FlowNode = {
   [T in NodeType]: { id: string; type: T; position: XY; size?: Size; data: NodeDataMap[T] }
 }[NodeType]
 
-/** 边：普通连线（依次衔接）/ 异常出口（失败时转向其他节点，可选）；均无附加数据 */
+/**
+ * 边：普通连线（依次衔接）/ 异常出口（失败时转向其他节点，可选）。
+ * sourcePort / targetPort 为可选持久化的端点连接点（保证重新打开后端点连接侧不变）。
+ */
 export interface FlowEdge {
   id: string
   source: string
   target: string
   kind: EdgeKind
+  sourcePort?: string
+  targetPort?: string
 }
 
 /** 元信息 */
@@ -142,4 +147,6 @@ export interface RawEdge {
   source: string
   target: string
   kind: EdgeKind
+  sourcePort?: string
+  targetPort?: string
 }

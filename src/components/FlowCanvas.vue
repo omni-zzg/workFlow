@@ -24,8 +24,8 @@ function showToast(message: string): void {
   }, 2000)
 }
 
-function insertTemplate(): void {
-  insertReactTemplate(requireGraphRuntime().graph)
+function insertTemplate(direction: 'vertical' | 'horizontal'): void {
+  insertReactTemplate(requireGraphRuntime().graph, direction)
 }
 
 onMounted(() => {
@@ -57,9 +57,14 @@ onBeforeUnmount(() => {
     <div ref="containerRef" class="flow-canvas__container"></div>
     <div v-if="nodeCount === 0" class="flow-canvas__empty">
       <p class="flow-canvas__empty-text">从左侧拖入节点开始绘制，或</p>
-      <button type="button" class="flow-canvas__empty-btn" @click="insertTemplate">
-        插入任务流模板
-      </button>
+      <div class="flow-canvas__empty-actions">
+        <button type="button" class="flow-canvas__empty-btn" @click="insertTemplate('vertical')">
+          插入竖向模板
+        </button>
+        <button type="button" class="flow-canvas__empty-btn" @click="insertTemplate('horizontal')">
+          插入横向模板
+        </button>
+      </div>
     </div>
     <transition name="flow-fade">
       <div v-if="toast" class="flow-canvas__toast">{{ toast }}</div>
@@ -95,6 +100,11 @@ onBeforeUnmount(() => {
   margin: 0;
   font-size: 13px;
   color: var(--color-text-secondary);
+}
+
+.flow-canvas__empty-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .flow-canvas__empty-btn {

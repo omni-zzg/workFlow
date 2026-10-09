@@ -8,6 +8,7 @@ import {
   insertReactTemplate,
   mutate,
 } from '@/graph'
+import type { TemplateDirection } from '@/graph'
 import { NODE_TYPE_LABELS } from '@/schema'
 import type { NodeType } from '@/schema'
 import { requireGraphRuntime } from '@/stores/graphStore'
@@ -28,9 +29,9 @@ function onDragStart(type: NodeType, event: MouseEvent): void {
   ensureDnd().start(node, event)
 }
 
-/** 一键插入 ReAct 骨架 */
-function insertTemplate(): void {
-  insertReactTemplate(requireGraphRuntime().graph)
+/** 一键插入 ReAct 骨架（竖向 / 横向） */
+function insertTemplate(direction: TemplateDirection): void {
+  insertReactTemplate(requireGraphRuntime().graph, direction)
 }
 
 /** 点击创建：落在画布中心（轻微错位避免完全重叠） */
@@ -65,8 +66,11 @@ function createAtCenter(type: NodeType): void {
       <span class="node-palette__label">{{ NODE_TYPE_LABELS[type] }}</span>
     </button>
     <p class="node-palette__hint">拖拽到画布，或点击创建</p>
-    <button type="button" class="node-palette__template" @click="insertTemplate">
-      插入任务流模板
+    <button type="button" class="node-palette__template" @click="insertTemplate('vertical')">
+      插入竖向模板
+    </button>
+    <button type="button" class="node-palette__template" @click="insertTemplate('horizontal')">
+      插入横向模板
     </button>
   </div>
 </template>
