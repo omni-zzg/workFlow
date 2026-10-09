@@ -2,7 +2,14 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Graph } from '@antv/x6'
 
-import { downloadTextFile, exportFlowJson, flowFileName, resetGraph } from '@/graph'
+import {
+  downloadTextFile,
+  exportFlowImage,
+  exportFlowJson,
+  flowFileName,
+  resetGraph,
+} from '@/graph'
+import type { ImageExportFormat } from '@/graph'
 import { DEFAULT_META } from '@/schema'
 import { useDocument } from '@/stores/document'
 import { detachCurrentDocument, saveCurrentDocument } from '@/stores/documents'
@@ -16,6 +23,7 @@ const canUndo = ref(false)
 const canRedo = ref(false)
 const showImport = ref(false)
 const showDocuments = ref(false)
+const showExport = ref(false)
 let cleanup: (() => void) | null = null
 
 const { meta, dirty, setMeta, markClean } = useDocument()
@@ -50,6 +58,7 @@ watch(
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('click', onDocumentClick)
   cleanup?.()
 })
 
@@ -93,8 +102,9 @@ function onKeydown(event: KeyboardEvent): void {
 
 onMounted(() => window.addEventListener('keydown', onKeydown))
 
-/** 导出：存在 error 级问题时先确认（spec: flow-json-storage） */
+/** 导出 JSON：存在 error 级问题时先确认（spec: flow-json-storage） */
 function exportFlow(): void {
+  showExport.value = false
   const { graph } = requireGraphRuntime()
   if (errorCount.value > 0 && !window.confirm(`存在 ${errorCount.value} 个问题，仍要导出？`)) {
     return
@@ -102,6 +112,34 @@ function exportFlow(): void {
   downloadTextFile(flowFileName(meta.value), exportFlowJson(graph, meta.value))
   markClean()
 }
+
+/** 导出图片/网页（spec: flow-canvas-editing「导出为图片与网页」） */
+function exportImage(format: ImageExportFormat): void {
+  showExport.value = false
+  const { graph } = requireGraphRuntime()
+  if (graph.getNodes().length === 0) {
+    window.alert('画布为空，没有可导出的内容')
+    return
+  }
+  void exportFlowImage(graph, meta.value, format).catch(() => {
+    window.alert('导出图片失败，请重试')
+  })
+}
+
+// 导出菜单：点击其他位置自动收起
+function onDocumentClick(event: MouseEvent): void {
+  const target = event.target as Element | null
+  if (target?.closest('.editor-toolbar__export')) return
+  showExport.value = false
+}
+
+watch(showExport, (open) => {
+  if (open) {
+    document.addEventListener('click', onDocumentClick)
+  } else {
+    document.removeEventListener('click', onDocumentClick)
+  }
+})
 </script>
 
 <template>
@@ -110,7 +148,25 @@ function exportFlow(): void {
     <button type="button" class="editor-toolbar__btn" @click="showDocuments = true">打开</button>
     <button type="button" class="editor-toolbar__btn" @click="saveFlow">保存</button>
     <button type="button" class="editor-toolbar__btn" @click="showImport = true">导入</button>
-    <button type="button" class="editor-toolbar__btn" @click="exportFlow">导出</button>
+    <div class="editor-toolbar__export">
+      <button type="button" class="editor-toolbar__btn" @click="showExport = !showExport">
+        导出 ▾
+      </button>
+      <div v-if="showExport" class="editor-toolbar__menu">
+        <button type="button" class="editor-toolbar__menu-item" @click="exportFlow">
+          JSON 文件
+        </button>
+        <button type="button" class="editor-toolbar__menu-item" @click="exportImage('png')">
+          PNG 图片
+        </button>
+        <button type="button" class="editor-toolbar__menu-item" @click="exportImage('svg')">
+          SVG 矢量图
+        </button>
+        <button type="button" class="editor-toolbar__menu-item" @click="exportImage('html')">
+          HTML 网页
+        </button>
+      </div>
+    </div>
     <button type="button" class="editor-toolbar__btn" @click="validateNow()">校验</button>
     <span class="editor-toolbar__divider"></span>
     <button type="button" class="editor-toolbar__btn" :disabled="!canUndo" @click="undo">
@@ -157,5 +213,39 @@ function exportFlow(): void {
 .editor-toolbar__btn:disabled {
   color: #b0b6bf;
   cursor: not-allowed;
+}
+
+.editor-toolbar__export {
+  position: relative;
+}
+
+.editor-toolbar__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  display: flex;
+  min-width: 128px;
+  flex-direction: column;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 14%);
+}
+
+.editor-toolbar__menu-item {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-radius: 5px;
+}
+
+.editor-toolbar__menu-item:hover {
+  background: rgb(51 112 255 / 8%);
 }
 </style>

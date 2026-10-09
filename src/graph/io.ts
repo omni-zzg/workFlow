@@ -1,4 +1,5 @@
 import type { Graph } from '@antv/x6'
+import { toPng, toSvg } from 'html-to-image'
 
 import { graphToSchema, parseFlowSchemaText, schemaToCells } from '@/schema'
 import type { FlowMeta, FlowSchema } from '@/schema'
@@ -64,4 +65,79 @@ export function resetGraph(graph: Graph): void {
     graph.clearCells()
   })
   graph.cleanHistory()
+}
+
+/** 触发 data URL 下载（PNG/SVG 图片导出用） */
+export function downloadDataUrl(fileName: string, dataUrl: string): void {
+  const link = document.createElement('a')
+  link.href = dataUrl
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
+export type ImageExportFormat = 'png' | 'svg' | 'html'
+
+function escapeHtml(text: string): string {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+}
+
+function baseFileName(meta: FlowMeta): string {
+  return (meta.name || 'flow').trim().replace(/[\\/:*?"<>|\s]+/g, '-') || 'flow'
+}
+
+/**
+ * 导出画布为可展示文件（spec: flow-canvas-editing「导出为图片与网页」）：
+ * PNG / SVG 经 html-to-image 捕获真实 DOM（含 HTML 节点内容与样式）；
+ * HTML 为内嵌图形的独立网页，可直接在浏览器打开。
+ * 导出前自动缩放以覆盖完整图形，导出完成后恢复原视口。
+ */
+export async function exportFlowImage(
+  graph: Graph,
+  meta: FlowMeta,
+  format: ImageExportFormat,
+): Promise<void> {
+  const previousScale = graph.zoom()
+  const previousTranslation = graph.translate()
+
+  try {
+    graph.zoomToFit({ padding: 32, maxScale: 1 })
+    // 等待一次渲染，确保捕获到适配后的视口
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+
+    const options = { backgroundColor: '#f6f7f9' }
+    const dataUrl =
+      format === 'png' ? await toPng(graph.container, options) : await toSvg(graph.container, options)
+
+    if (format === 'html') {
+      const title = escapeHtml(meta.name || '流程图')
+      const html = `<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>${title}</title>
+<style>
+  body { margin: 0; display: flex; justify-content: center; background: #f6f7f9; }
+  img { max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<img src="${dataUrl}" alt="${title}" />
+</body>
+</html>
+`
+      downloadTextFile(`${baseFileName(meta)}.html`, html, 'text/html')
+      return
+    }
+
+    downloadDataUrl(`${baseFileName(meta)}.${format}`, dataUrl)
+  } finally {
+    graph.zoom(previousScale, { absolute: true })
+    graph.translate(previousTranslation.tx, previousTranslation.ty)
+  }
 }
