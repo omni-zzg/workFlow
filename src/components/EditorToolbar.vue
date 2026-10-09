@@ -3,6 +3,10 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Graph } from '@antv/x6'
 
 import {
+  alignHorizontalCenter,
+  alignVerticalCenter,
+  distributeHorizontally,
+  distributeVertically,
   downloadTextFile,
   exportFlowImage,
   exportFlowJson,
@@ -21,6 +25,7 @@ import ImportFlowDialog from './ImportFlowDialog.vue'
 
 const canUndo = ref(false)
 const canRedo = ref(false)
+const selectedNodeCount = ref(0)
 const showImport = ref(false)
 const showDocuments = ref(false)
 const showExport = ref(false)
@@ -38,6 +43,7 @@ watch(
     if (!runtime) {
       canUndo.value = false
       canRedo.value = false
+      selectedNodeCount.value = 0
       return
     }
     const graph: Graph = runtime.graph
@@ -45,12 +51,21 @@ watch(
       canUndo.value = graph.canUndo()
       canRedo.value = graph.canRedo()
     }
+    const syncSelection = (): void => {
+      selectedNodeCount.value = graph
+        .getSelectedCells()
+        .filter((cell) => cell.isNode()).length
+    }
     graph.on('history:change', sync)
+    graph.on('selection:changed', syncSelection)
     sync()
+    syncSelection()
     cleanup = () => {
       graph.off('history:change', sync)
+      graph.off('selection:changed', syncSelection)
       canUndo.value = false
       canRedo.value = false
+      selectedNodeCount.value = 0
     }
   },
   { immediate: true },
@@ -73,6 +88,18 @@ function redo(): void {
 /** 适应画布 */
 function fitView(): void {
   requireGraphRuntime().graph.zoomToFit({ padding: 48, maxScale: 1 })
+}
+
+/** 对齐与对称分布（spec: flow-canvas-editing「节点对齐与对称分布」） */
+function alignNodes(action: 'h-center' | 'v-center' | 'h-distribute' | 'v-distribute'): void {
+  const { graph } = requireGraphRuntime()
+  const actions = {
+    'h-center': alignHorizontalCenter,
+    'v-center': alignVerticalCenter,
+    'h-distribute': distributeHorizontally,
+    'v-distribute': distributeVertically,
+  }
+  actions[action](graph)
 }
 
 /** 新建：清空画布与撤销栈（与当前文档解除关联） */
@@ -177,6 +204,42 @@ watch(showExport, (open) => {
     </button>
     <span class="editor-toolbar__divider"></span>
     <button type="button" class="editor-toolbar__btn" @click="fitView">适应画布</button>
+    <button
+      type="button"
+      class="editor-toolbar__btn"
+      title="水平居中：选中节点对齐到同一水平中线"
+      :disabled="selectedNodeCount < 2"
+      @click="alignNodes('h-center')"
+    >
+      横居中
+    </button>
+    <button
+      type="button"
+      class="editor-toolbar__btn"
+      title="垂直居中：选中节点对齐到同一垂直中线"
+      :disabled="selectedNodeCount < 2"
+      @click="alignNodes('v-center')"
+    >
+      纵居中
+    </button>
+    <button
+      type="button"
+      class="editor-toolbar__btn"
+      title="水平等距分布：首尾不动，横向间隙均分"
+      :disabled="selectedNodeCount < 3"
+      @click="alignNodes('h-distribute')"
+    >
+      横等距
+    </button>
+    <button
+      type="button"
+      class="editor-toolbar__btn"
+      title="垂直等距分布：首尾不动，纵向间隙均分"
+      :disabled="selectedNodeCount < 3"
+      @click="alignNodes('v-distribute')"
+    >
+      纵等距
+    </button>
 
     <ImportFlowDialog v-if="showImport" @close="showImport = false" />
     <DocumentDialog v-if="showDocuments" @close="showDocuments = false" />
