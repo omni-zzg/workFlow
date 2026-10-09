@@ -3,14 +3,17 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import type { Graph } from '@antv/x6'
 
 import { CellStateController, createGraph, insertReactTemplate } from '@/graph'
+import { DEFAULT_META } from '@/schema'
 import { initDocumentTracking, useDocument } from '@/stores/document'
+import { detachCurrentDocument, openDocument, useDocuments } from '@/stores/documents'
 import { requireGraphRuntime, setGraphRuntime } from '@/stores/graphStore'
 import { initSelectionTracking } from '@/stores/selection'
 import { initValidation } from '@/stores/validation'
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const toast = ref<string | null>(null)
-const { nodeCount } = useDocument()
+const { nodeCount, setMeta, markClean } = useDocument()
+const { currentId } = useDocuments()
 
 let graph: Graph | null = null
 let disposers: Array<() => void> = []
@@ -40,6 +43,19 @@ onMounted(() => {
     initDocumentTracking(instance),
     initValidation(instance),
   ]
+
+  // 恢复上次打开的文档（刷新/重开页面后画布随之还原并适配视口）
+  if (currentId.value) {
+    const result = openDocument(instance, currentId.value)
+    if (result.ok) {
+      setMeta({ ...(result.schema.meta ?? DEFAULT_META) })
+      markClean()
+      instance.zoomToFit({ padding: 48, maxScale: 1 })
+    } else {
+      // 文档损坏/已不存在：解除关联，避免"当前文档"指向空画布
+      detachCurrentDocument()
+    }
+  }
 })
 
 onBeforeUnmount(() => {
