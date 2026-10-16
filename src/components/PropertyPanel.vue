@@ -412,7 +412,7 @@ watch(
                     commitStepDrafts()
                   "
                 />
-                <button type="button" title="删除动作" @click="removeAction(stepIndex, actionIndex)">
+                <button type="button" title="删除行动" @click="removeAction(stepIndex, actionIndex)">
                   ×
                 </button>
               </div>
@@ -484,7 +484,7 @@ watch(
               </button>
             </div>
             <button type="button" class="property-panel__add-btn" @click="addAction(stepIndex)">
-              + 添加动作
+              + 添加行动
             </button>
           </div>
 

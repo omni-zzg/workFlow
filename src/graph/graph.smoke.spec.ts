@@ -250,7 +250,10 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
         {
           id: 's1',
           thought: '第一步思考',
-          actions: [{ tool: 'a1', purpose: '第一步用途', expectedResult: '预期产出', params: {} }],
+          actions: [
+            { tool: 'a1', purpose: '第一步用途', expectedResult: '预期产出', params: {} },
+            { tool: 'a2', purpose: '第二个用途', expectedResult: '', params: {} },
+          ],
           observation: '第一步观察',
         },
         { id: 's2', thought: '第二步思考', actions: [], observation: '第二步观察' },
@@ -276,12 +279,19 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     expect(host.textContent).toContain('第三步观察')
     // 行动行展示「工具 —— 目的」；未声明工具时显示占位
     expect(host.textContent).toContain('a1 —— 第一步用途')
+    expect(host.textContent).toContain('a2 —— 第二个用途')
     expect(host.textContent).toContain('（未命名工具）')
-    // 「预期」行：仅行动填写了预期结果的步骤显示（第一步），与观察形成对照
-    const expectedLabels = [...host.querySelectorAll('.flow-task__line b')].filter(
-      (element) => element.textContent === '预期',
-    )
-    expect(expectedLabels).toHaveLength(1)
+    // 多个行动逐个编号成行（行动1/行动2）；单行动仍显示「行动」
+    const lineLabels = (label: string): number =>
+      [...host.querySelectorAll('.flow-task__line b')].filter(
+        (element) => element.textContent === label,
+      ).length
+    expect(lineLabels('行动1')).toBe(1)
+    expect(lineLabels('行动2')).toBe(1)
+    expect(lineLabels('行动')).toBe(2) // 第二步（空行动占位）与第三步（单行动）
+    // 预期随行动成行：行动1 有预期（预期1），行动2 为空不占行
+    expect(lineLabels('预期1')).toBe(1)
+    expect(lineLabels('预期2')).toBe(0)
     expect(host.textContent).toContain('预期产出')
 
     // 清空退出条件与步骤 → 占位

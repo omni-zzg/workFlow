@@ -142,7 +142,7 @@ describe('属性面板', () => {
     // 为第一步添加动作与参数
     const firstStepBlock = host.querySelectorAll('.property-panel__step')[0]!
     const addActionButton = [...firstStepBlock.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('添加动作'),
+      button.textContent?.includes('添加行动'),
     ) as HTMLButtonElement
     addActionButton.click()
     await nextTick()
@@ -206,7 +206,7 @@ describe('属性面板', () => {
 
     const firstStepBlock = host.querySelectorAll('.property-panel__step')[0]!
     const addActionButton = [...firstStepBlock.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('添加动作'),
+      button.textContent?.includes('添加行动'),
     ) as HTMLButtonElement
     addActionButton.click()
     await nextTick()

@@ -27,23 +27,28 @@ const failure = computed(
 )
 const maxRetries = computed(() => failure.value.maxRetries ?? 0)
 
-function actionText(step: ReactStep): string {
-  if (!step.actions || step.actions.length === 0) return '……'
-  return step.actions
-    .map((action) => {
-      const tool = action.tool.trim() || '（未命名工具）'
-      const purpose = action.purpose.trim()
-      return purpose ? `${tool} —— ${purpose}` : tool
+/**
+ * 步骤的行动/预期行：单个行动显示「行动」「预期」；
+ * 多个行动逐个成行并编号（行动1/预期1、行动2/预期2……），预期为空不占行。
+ */
+function stepLines(step: ReactStep): Array<{ label: string; text: string }> {
+  const actions = step.actions ?? []
+  if (actions.length === 0) return [{ label: '行动', text: '……' }]
+  const single = actions.length === 1
+  const lines: Array<{ label: string; text: string }> = []
+  actions.forEach((action, index) => {
+    const tool = action.tool.trim() || '（未命名工具）'
+    const purpose = action.purpose.trim()
+    lines.push({
+      label: single ? '行动' : `行动${index + 1}`,
+      text: purpose ? `${tool} —— ${purpose}` : tool,
     })
-    .join('、')
-}
-
-/** 预期结果行内容（各行动预期以「、」连接）；全部为空时返回空串（该行不显示） */
-function expectedText(step: ReactStep): string {
-  return (step.actions ?? [])
-    .map((action) => action.expectedResult.trim())
-    .filter((text) => text !== '')
-    .join('、')
+    const expected = action.expectedResult.trim()
+    if (expected) {
+      lines.push({ label: single ? '预期' : `预期${index + 1}`, text: expected })
+    }
+  })
+  return lines
 }
 </script>
 
@@ -71,9 +76,12 @@ function expectedText(step: ReactStep): string {
             <span class="flow-task__step-no">{{ index + 1 }}</span>
             <div class="flow-task__step-body">
               <div class="flow-task__line"><b>思考</b>{{ step.thought || '……' }}</div>
-              <div class="flow-task__line"><b>行动</b>{{ actionText(step) }}</div>
-              <div v-if="expectedText(step)" class="flow-task__line">
-                <b>预期</b>{{ expectedText(step) }}
+              <div
+                v-for="(line, lineIndex) in stepLines(step)"
+                :key="lineIndex"
+                class="flow-task__line"
+              >
+                <b>{{ line.label }}</b>{{ line.text }}
               </div>
               <div class="flow-task__line"><b>观察</b>{{ step.observation || '……' }}</div>
             </div>
