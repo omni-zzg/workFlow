@@ -277,6 +277,12 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     // 行动行展示「工具 —— 目的」；未声明工具时显示占位
     expect(host.textContent).toContain('a1 —— 第一步用途')
     expect(host.textContent).toContain('（未命名工具）')
+    // 「预期」行：仅行动填写了预期结果的步骤显示（第一步），与观察形成对照
+    const expectedLabels = [...host.querySelectorAll('.flow-task__line b')].filter(
+      (element) => element.textContent === '预期',
+    )
+    expect(expectedLabels).toHaveLength(1)
+    expect(host.textContent).toContain('预期产出')
 
     // 清空退出条件与步骤 → 占位
     node.replaceData({

@@ -37,6 +37,14 @@ function actionText(step: ReactStep): string {
     })
     .join('、')
 }
+
+/** 预期结果行内容（各行动预期以「、」连接）；全部为空时返回空串（该行不显示） */
+function expectedText(step: ReactStep): string {
+  return (step.actions ?? [])
+    .map((action) => action.expectedResult.trim())
+    .filter((text) => text !== '')
+    .join('、')
+}
 </script>
 
 <template>
@@ -64,6 +72,9 @@ function actionText(step: ReactStep): string {
             <div class="flow-task__step-body">
               <div class="flow-task__line"><b>思考</b>{{ step.thought || '……' }}</div>
               <div class="flow-task__line"><b>行动</b>{{ actionText(step) }}</div>
+              <div v-if="expectedText(step)" class="flow-task__line">
+                <b>预期</b>{{ expectedText(step) }}
+              </div>
               <div class="flow-task__line"><b>观察</b>{{ step.observation || '……' }}</div>
             </div>
           </div>
