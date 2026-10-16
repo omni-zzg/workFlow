@@ -29,7 +29,13 @@ const maxRetries = computed(() => failure.value.maxRetries ?? 0)
 
 function actionText(step: ReactStep): string {
   if (!step.actions || step.actions.length === 0) return '……'
-  return step.actions.map((action) => action.name.trim() || '（未命名动作）').join('、')
+  return step.actions
+    .map((action) => {
+      const tool = action.tool.trim() || '（未命名工具）'
+      const purpose = action.purpose.trim()
+      return purpose ? `${tool} —— ${purpose}` : tool
+    })
+    .join('、')
 }
 </script>
 

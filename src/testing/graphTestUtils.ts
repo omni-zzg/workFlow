@@ -103,7 +103,9 @@ export function sampleRaw(): { nodes: RawNode[]; edges: RawEdge[] } {
           {
             id: 'n2-s1',
             thought: '思考',
-            actions: [{ name: 'tool', params: { k: 'v' } }],
+            actions: [
+              { tool: 'tool', purpose: '用途', expectedResult: '预期', params: { k: 'v' } },
+            ],
             observation: '观察',
           },
         ],

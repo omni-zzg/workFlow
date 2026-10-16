@@ -2,6 +2,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { insertRawGraph, projectRawGraph } from '@/graph'
+import type { TaskData } from '@/schema'
 import {
   flush,
   installJsdomPolyfills,
@@ -123,6 +124,48 @@ describe('本地文档管理', () => {
     expect(result.ok).toBe(false)
     await flush()
     expect(projectRawGraph(target.graph).nodes.length).toBe(before) // 画布不动
+    target.graph.dispose()
+  })
+
+  it('打开旧版（v1）本地文档：自动迁移，工具名可见', async () => {
+    const source = makeTestGraph()
+    insertRawGraph(source.graph, sampleRaw())
+    await flush()
+    const id = saveCurrentDocument(source.graph, { name: '旧档' })
+    source.graph.dispose()
+
+    // 手工把存储内容降级为 v1 形状（行动为 {name, params}）
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY)!) as {
+      docs: Array<{
+        schema: {
+          version: number
+          nodes: Array<{ type: string; data?: Record<string, unknown> }>
+        }
+      }>
+    }
+    const schema = raw.docs[0]!.schema
+    schema.version = 1
+    const task = schema.nodes.find((node) => node.type === 'task')!
+    const steps = task.data!.steps as Array<{ actions: Array<Record<string, unknown>> }>
+    steps[0]!.actions = steps[0]!.actions.map((action) => ({
+      name: action.tool,
+      params: action.params,
+    }))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(raw))
+    reloadDocuments()
+
+    const target = makeTestGraph()
+    const result = openDocument(target.graph, id)
+    expect(result.ok).toBe(true)
+    await flush()
+    const opened = projectRawGraph(target.graph).nodes.find((node) => node.nodeType === 'task')
+    const openedSteps = (opened?.data as TaskData).steps
+    expect(openedSteps[0]!.actions[0]).toMatchObject({
+      tool: 'tool',
+      purpose: '',
+      expectedResult: '',
+      params: { k: 'v' },
+    })
     target.graph.dispose()
   })
 })

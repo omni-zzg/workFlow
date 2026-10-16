@@ -40,7 +40,7 @@ export function graphToSchema(graph: RawGraph): FlowSchema {
   )
 
   return {
-    version: 1,
+    version: 2,
     meta: graph.meta ?? DEFAULT_META,
     nodes,
     edges,

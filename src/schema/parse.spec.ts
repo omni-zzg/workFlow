@@ -4,7 +4,7 @@ import { parseFlowSchema, parseFlowSchemaText } from './parse'
 
 function makeValidFlow(): Record<string, unknown> {
   return {
-    version: 1,
+    version: 2,
     meta: { name: '示例' },
     nodes: [
       { id: 's', type: 'start', position: { x: 0, y: 0 }, data: { goal: '目标' } },
@@ -101,7 +101,46 @@ describe('parse：导入校验（任务流模型）', () => {
     flow.version = 99
     const result = parseFlowSchema(flow)
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.errors[0]).toContain('不支持的版本 99')
+    if (!result.ok) {
+      expect(result.errors[0]).toContain('不支持的版本 99')
+      expect(result.errors[0]).toContain('1、2')
+    }
+  })
+
+  it('v1 迁移：行动 name → tool，purpose/expectedResult 补空，版本归一为 2', () => {
+    const v1 = clone(makeValidFlow())
+    v1.version = 1
+    const taskData = (v1.nodes as Record<string, unknown>[])[1]!.data as Record<string, unknown>
+    ;(taskData.steps as Record<string, unknown>[])[0]!.actions = [
+      { name: 'get_weather', params: { city: '北京' } },
+    ]
+    const result = parseFlowSchema(v1)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.schema.version).toBe(2)
+      const task = result.schema.nodes.find((node) => node.type === 'task')
+      if (task?.type === 'task') {
+        expect(task.data.steps[0]!.actions[0]).toStrictEqual({
+          tool: 'get_weather',
+          purpose: '',
+          expectedResult: '',
+          params: { city: '北京' },
+        })
+      }
+    }
+  })
+
+  it('v2 行动缺 tool：错误带字段路径', () => {
+    const flow = clone(makeValidFlow())
+    const taskData = (flow.nodes as Record<string, unknown>[])[1]!.data as Record<string, unknown>
+    ;(taskData.steps as Record<string, unknown>[])[0]!.actions = [
+      { purpose: '查询天气', expectedResult: '', params: {} },
+    ]
+    const result = parseFlowSchema(flow)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errors.join('；')).toContain('nodes.1.data.steps.0.actions.0.tool')
+    }
   })
 
   it('未识别的额外字段被忽略（为字段扩展留余地）', () => {

@@ -54,13 +54,14 @@ export function validate(schema: FlowSchema): Issue[] {
         (step) =>
           step.thought.trim() === '' ||
           step.observation.trim() === '' ||
-          step.actions.length === 0,
+          step.actions.length === 0 ||
+          step.actions.some((action) => action.tool.trim() === '' || action.purpose.trim() === ''),
       )
       if (hasIncompleteStep) {
         issues.push({
           severity: 'warning',
           ruleId: 'W1',
-          message: '步骤不完整：思考/行动/观察存在缺项',
+          message: '步骤不完整：思考/行动/观察存在缺项（行动需含工具与目的）',
           cellIds: [task.id],
         })
       }

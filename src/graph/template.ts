@@ -66,13 +66,27 @@ export function buildReactTemplateCells(
           {
             id: id('tpl-step-1-1'),
             thought: '需要先获取完成任务所需的数据',
-            actions: [{ name: 'get_data', params: {} }],
+            actions: [
+              {
+                tool: 'get_data',
+                purpose: '拉取任务所需的数据',
+                expectedResult: '拿到完整可用的数据',
+                params: {},
+              },
+            ],
             observation: '返回所需数据',
           },
           {
             id: id('tpl-step-1-2'),
             thought: '校验数据是否完整可用',
-            actions: [{ name: 'validate_data', params: {} }],
+            actions: [
+              {
+                tool: 'validate_data',
+                purpose: '校验数据的完整性',
+                expectedResult: '确认数据可用',
+                params: {},
+              },
+            ],
             observation: '数据完整则进入完成判断',
           },
         ],
@@ -103,13 +117,27 @@ export function buildReactTemplateCells(
           {
             id: id('tpl-step-2-1'),
             thought: '整理上一步产出，明确处理方式',
-            actions: [{ name: 'process_data', params: {} }],
+            actions: [
+              {
+                tool: 'process_data',
+                purpose: '按目标处理并整理数据',
+                expectedResult: '得到处理结果',
+                params: {},
+              },
+            ],
             observation: '得到处理结果',
           },
           {
             id: id('tpl-step-2-2'),
             thought: '确认结果满足最终要求',
-            actions: [{ name: 'check_result', params: {} }],
+            actions: [
+              {
+                tool: 'check_result',
+                purpose: '核对结果是否满足要求',
+                expectedResult: '确认结果可交付',
+                params: {},
+              },
+            ],
             observation: '结果符合要求则进入结束',
           },
         ],

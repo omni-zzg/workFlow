@@ -161,7 +161,9 @@ function removeExitCondition(index: number): void {
 // ---- 步骤序列：本地草稿（保持输入行身份），提交时序列化回数据 ----
 
 interface ActionDraft {
-  name: string
+  tool: string
+  purpose: string
+  expectedResult: string
   paramRows: Array<{ key: string; value: string }>
 }
 interface StepDraft {
@@ -190,7 +192,9 @@ function syncStepDrafts(): void {
     thought: step.thought,
     observation: step.observation,
     actions: step.actions.map((action) => ({
-      name: action.name,
+      tool: action.tool,
+      purpose: action.purpose,
+      expectedResult: action.expectedResult,
       paramRows: Object.entries(action.params).map(([key, value]) => ({
         key,
         value: valueToString(value),
@@ -200,18 +204,25 @@ function syncStepDrafts(): void {
 }
 
 function commitStepDrafts(): void {
+  // 键序对齐 zod 声明序（id, thought, actions, observation）与行动四字段声明序：
+  // 导出 → 导入 → 再导出的字节等价依赖各写入路径键序一致
   const steps: ReactStep[] = stepDrafts.value.map((draft) => ({
     id: draft.id,
     thought: draft.thought,
-    observation: draft.observation,
     actions: draft.actions.map((action) => {
       const params: Record<string, unknown> = {}
       for (const row of action.paramRows) {
         const key = row.key.trim()
         if (key) params[key] = row.value
       }
-      return { name: action.name, params }
+      return {
+        tool: action.tool,
+        purpose: action.purpose,
+        expectedResult: action.expectedResult,
+        params,
+      }
     }),
+    observation: draft.observation,
   }))
   writeNodeData({ steps })
 }
@@ -235,7 +246,12 @@ function moveStep(index: number, delta: -1 | 1): void {
 }
 
 function addAction(stepIndex: number): void {
-  stepDrafts.value[stepIndex]?.actions.push({ name: '', paramRows: [] })
+  stepDrafts.value[stepIndex]?.actions.push({
+    tool: '',
+    purpose: '',
+    expectedResult: '',
+    paramRows: [],
+  })
   commitStepDrafts()
 }
 
@@ -389,10 +405,10 @@ watch(
                 <input
                   class="property-panel__input"
                   type="text"
-                  placeholder="动作 / 工具名"
-                  :value="action.name"
+                  placeholder="工具（如：web_search）"
+                  :value="action.tool"
                   @input="
-                    action.name = ($event.target as HTMLInputElement).value;
+                    action.tool = ($event.target as HTMLInputElement).value;
                     commitStepDrafts()
                   "
                 />
@@ -400,6 +416,32 @@ watch(
                   ×
                 </button>
               </div>
+              <label class="property-panel__field">
+                <span class="property-panel__label">目的</span>
+                <input
+                  class="property-panel__input"
+                  type="text"
+                  placeholder="本次使用该工具完成什么"
+                  :value="action.purpose"
+                  @input="
+                    action.purpose = ($event.target as HTMLInputElement).value;
+                    commitStepDrafts()
+                  "
+                />
+              </label>
+              <label class="property-panel__field">
+                <span class="property-panel__label">预期结果</span>
+                <input
+                  class="property-panel__input"
+                  type="text"
+                  placeholder="可选，如：返回三条可用资料"
+                  :value="action.expectedResult"
+                  @input="
+                    action.expectedResult = ($event.target as HTMLInputElement).value;
+                    commitStepDrafts()
+                  "
+                />
+              </label>
               <div
                 v-for="(row, rowIndex) in action.paramRows"
                 :key="rowIndex"
@@ -451,7 +493,7 @@ watch(
             <textarea
               class="property-panel__textarea"
               rows="2"
-              placeholder="预期返回 / 结果"
+              placeholder="实际返回 / 结果"
               :value="step.observation"
               @input="
                 step.observation = ($event.target as HTMLTextAreaElement).value;

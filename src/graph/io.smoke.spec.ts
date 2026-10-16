@@ -3,6 +3,7 @@ import { createApp, nextTick } from 'vue'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import ImportFlowDialog from '@/components/ImportFlowDialog.vue'
+import type { TaskData } from '@/schema'
 import { useDocument } from '@/stores/document'
 import { setGraphRuntime } from '@/stores/graphStore'
 import {
@@ -33,7 +34,7 @@ describe('导入导出', () => {
     const text = exportFlowJson(graph, { name: '测试任务流' })
     const parsed = JSON.parse(text) as Record<string, unknown>
     expect(Object.keys(parsed).sort()).toEqual(['edges', 'meta', 'nodes', 'version'])
-    expect(parsed.version).toBe(1)
+    expect(parsed.version).toBe(2)
 
     const firstNode = (parsed.nodes as Array<Record<string, unknown>>)[0]!
     expect(Object.keys(firstNode).sort()).toEqual(['data', 'id', 'position', 'type'])
@@ -112,6 +113,56 @@ describe('导入导出', () => {
     expect((task?.data as { steps: unknown[] }).steps).toHaveLength(2)
 
     source.dispose()
+    target.dispose()
+  })
+
+  it('导入 v1 文件：自动迁移（name → tool）且导出恒为 version 2', async () => {
+    const v1 = {
+      version: 1,
+      meta: { name: '旧版任务流' },
+      nodes: [
+        { id: 's', type: 'start', position: { x: 0, y: 0 }, data: { goal: '旧目标' } },
+        {
+          id: 't',
+          type: 'task',
+          position: { x: 0, y: 100 },
+          data: {
+            name: '旧任务',
+            goal: '旧任务目标',
+            input: '',
+            steps: [
+              {
+                id: 't-s1',
+                thought: '旧思考',
+                actions: [{ name: 'get_weather', params: { city: '北京' } }],
+                observation: '旧观察',
+              },
+            ],
+            loop: { exitConditions: [{ type: 'goal_achieved' }] },
+            precondition: '',
+            onFailure: { reflection: '', replan: '', maxRetries: 1 },
+          },
+        },
+      ],
+      edges: [{ id: 'e1', source: 's', target: 't', kind: 'normal' }],
+    }
+
+    const target = makeTestGraph().graph
+    const result = importFlowText(target, JSON.stringify(v1))
+    expect(result.ok).toBe(true)
+    await flush()
+
+    const task = projectRawGraph(target).nodes.find((node) => node.nodeType === 'task')
+    const steps = (task?.data as TaskData).steps
+    expect(steps[0]!.actions[0]).toStrictEqual({
+      tool: 'get_weather',
+      purpose: '',
+      expectedResult: '',
+      params: { city: '北京' },
+    })
+
+    const text = exportFlowJson(target, { name: '旧版任务流' })
+    expect((JSON.parse(text) as Record<string, unknown>).version).toBe(2)
     target.dispose()
   })
 })

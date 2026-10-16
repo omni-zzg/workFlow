@@ -27,7 +27,12 @@ function taskNode(id = 't', overrides: Partial<TaskData> = {}): FlowNode {
     goal: '任务目标',
     input: '输入描述',
     steps: [
-      { id: `${id}-s1`, thought: '思考', actions: [{ name: 'tool', params: {} }], observation: '观察' },
+      {
+        id: `${id}-s1`,
+        thought: '思考',
+        actions: [{ tool: 'tool', purpose: '用途', expectedResult: '', params: {} }],
+        observation: '观察',
+      },
     ],
     loop: { exitConditions: [{ type: 'goal_achieved' }] },
     precondition: '前提条件',
@@ -52,7 +57,7 @@ const exception = (id: string, source: string, target: string): FlowEdge => ({
 })
 
 const mkSchema = (nodeList: FlowNode[], edgeList: FlowEdge[]): FlowSchema => ({
-  version: 1,
+  version: 2,
   meta: { name: '测试任务流' },
   nodes: nodeList,
   edges: edgeList,
@@ -111,12 +116,70 @@ describe('逐节点：ReAct 必备要素', () => {
       ...data,
       steps: [
         { id: 't-s1', thought: '想', actions: [], observation: '看' },
-        { id: 't-s2', thought: '想', actions: [{ name: 'tool', params: {} }], observation: '' },
+        {
+          id: 't-s2',
+          thought: '想',
+          actions: [{ tool: 'tool', purpose: '用途', expectedResult: '', params: {} }],
+          observation: '',
+        },
       ],
     }
     const issues = issuesOf(schema, 'W1')
     expect(issues).toHaveLength(1)
     expect(issues[0]!.severity).toBe('warning')
+  })
+
+  it('W1 行动缺工具时报 warning', () => {
+    const schema = baseline()
+    const data = (schema.nodes[1] as { data: TaskData }).data
+    ;(schema.nodes[1] as { data: TaskData }).data = {
+      ...data,
+      steps: [
+        {
+          id: 't-s1',
+          thought: '想',
+          actions: [{ tool: '', purpose: '用途', expectedResult: '', params: {} }],
+          observation: '看',
+        },
+      ],
+    }
+    const issues = issuesOf(schema, 'W1')
+    expect(issues).toHaveLength(1)
+    expect(issues[0]!.message).toContain('行动需含工具与目的')
+  })
+
+  it('W1 行动缺目的时报 warning', () => {
+    const schema = baseline()
+    const data = (schema.nodes[1] as { data: TaskData }).data
+    ;(schema.nodes[1] as { data: TaskData }).data = {
+      ...data,
+      steps: [
+        {
+          id: 't-s1',
+          thought: '想',
+          actions: [{ tool: 'web_search', purpose: '  ', expectedResult: '', params: {} }],
+          observation: '看',
+        },
+      ],
+    }
+    expect(issuesOf(schema, 'W1')).toHaveLength(1)
+  })
+
+  it('W1 正例：预期结果为空不算缺项', () => {
+    const schema = baseline()
+    const data = (schema.nodes[1] as { data: TaskData }).data
+    ;(schema.nodes[1] as { data: TaskData }).data = {
+      ...data,
+      steps: [
+        {
+          id: 't-s1',
+          thought: '想',
+          actions: [{ tool: 'web_search', purpose: '检索资料', expectedResult: '', params: {} }],
+          observation: '看',
+        },
+      ],
+    }
+    expect(issuesOf(schema, 'W1')).toHaveLength(0)
   })
 
   it('E3 循环退出条件为空时报 error', () => {

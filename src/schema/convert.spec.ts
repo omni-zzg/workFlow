@@ -5,7 +5,7 @@ import type { FlowSchema } from './types'
 
 /** 覆盖样本：两个任务、多步骤、多退出条件、custom 条件、异常出口边 */
 const sample: FlowSchema = {
-  version: 1,
+  version: 2,
   meta: { name: '双任务流', description: '覆盖多步骤与异常出口边' },
   nodes: [
     { id: 's1', type: 'start', position: { x: 0, y: 0 }, data: { goal: '为用户生成出行建议' } },
@@ -21,13 +21,27 @@ const sample: FlowSchema = {
           {
             id: 't1-s1',
             thought: '需要调用天气工具',
-            actions: [{ name: 'get_weather', params: { city: '北京', strict: true } }],
+            actions: [
+              {
+                tool: 'get_weather',
+                purpose: '查询目标城市实时天气',
+                expectedResult: '返回温度与天气状况',
+                params: { city: '北京', strict: true },
+              },
+            ],
             observation: '返回温度与天气状况',
           },
           {
             id: 't1-s2',
             thought: '校验字段完整性',
-            actions: [{ name: 'validate', params: {} }],
+            actions: [
+              {
+                tool: 'validate',
+                purpose: '校验字段完整性',
+                expectedResult: '字段齐全进入判断',
+                params: {},
+              },
+            ],
             observation: '字段齐全进入判断',
           },
         ],
@@ -98,12 +112,22 @@ describe('convert：持久化格式 <-> 中间形态', () => {
     const task = cells.nodes.find((node) => node.id === 't1')
     expect(task).toBeDefined()
     const data = task!.data as {
-      steps: { thought: string; actions: { name: string; params: Record<string, unknown> }[] }[]
+      steps: {
+        thought: string
+        actions: {
+          tool: string
+          purpose: string
+          expectedResult: string
+          params: Record<string, unknown>
+        }[]
+      }[]
     }
     expect(data.steps).toHaveLength(2)
     expect(data.steps[0]!.thought).toBe('需要调用天气工具')
     expect(data.steps[0]!.actions[0]).toEqual({
-      name: 'get_weather',
+      tool: 'get_weather',
+      purpose: '查询目标城市实时天气',
+      expectedResult: '返回温度与天气状况',
       params: { city: '北京', strict: true },
     })
   })

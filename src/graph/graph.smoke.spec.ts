@@ -250,14 +250,14 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
         {
           id: 's1',
           thought: '第一步思考',
-          actions: [{ name: 'a1', params: {} }],
+          actions: [{ tool: 'a1', purpose: '第一步用途', expectedResult: '预期产出', params: {} }],
           observation: '第一步观察',
         },
         { id: 's2', thought: '第二步思考', actions: [], observation: '第二步观察' },
         {
           id: 's3',
           thought: '第三步思考',
-          actions: [{ name: 'a3', params: {} }],
+          actions: [{ tool: '', purpose: '', expectedResult: '', params: {} }],
           observation: '第三步观察',
         },
       ],
@@ -274,6 +274,9 @@ describe('graph 冒烟：实例、插件、投影与撤销', () => {
     expect(thoughtLabels).toHaveLength(3) // 3 个步骤全部展示（不截断）
     expect(host.textContent).toContain('第三步思考')
     expect(host.textContent).toContain('第三步观察')
+    // 行动行展示「工具 —— 目的」；未声明工具时显示占位
+    expect(host.textContent).toContain('a1 —— 第一步用途')
+    expect(host.textContent).toContain('（未命名工具）')
 
     // 清空退出条件与步骤 → 占位
     node.replaceData({

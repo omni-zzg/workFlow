@@ -151,6 +151,85 @@ describe('属性面板', () => {
     cleanup()
   })
 
+  it('行动编辑：工具/目的/预期结果控件齐全，编辑即时同步并可撤销', async () => {
+    const { graph } = makeTestGraph()
+    insertRawGraph(graph, sampleRaw())
+    await flush()
+    const { host, cleanup } = mountPanel(graph, 'n2')
+    await nextTick()
+
+    const toolInput = host.querySelector(
+      'input[placeholder="工具（如：web_search）"]',
+    ) as HTMLInputElement
+    const purposeInput = host.querySelector(
+      'input[placeholder="本次使用该工具完成什么"]',
+    ) as HTMLInputElement
+    const expectedInput = host.querySelector(
+      'input[placeholder="可选，如：返回三条可用资料"]',
+    ) as HTMLInputElement
+    expect(toolInput).not.toBeNull()
+    expect(purposeInput).not.toBeNull()
+    expect(expectedInput).not.toBeNull()
+    // 既有值回灌（sampleRaw：tool=tool / purpose=用途 / expectedResult=预期）
+    expect(toolInput.value).toBe('tool')
+    expect(purposeInput.value).toBe('用途')
+    expect(expectedInput.value).toBe('预期')
+
+    setValue(toolInput, 'web_search')
+    setValue(purposeInput, '检索资料')
+    setValue(expectedInput, '三条结果')
+    await nextTick()
+    expect(taskOf(graph).steps[0]!.actions[0]).toEqual({
+      tool: 'web_search',
+      purpose: '检索资料',
+      expectedResult: '三条结果',
+      params: { k: 'v' },
+    })
+
+    // 撤销一步：只回退最后一次编辑，且面板值同步回灌
+    graph.undo()
+    await nextTick()
+    const action = taskOf(graph).steps[0]!.actions[0]!
+    expect(action.tool).toBe('web_search')
+    expect(action.expectedResult).toBe('预期')
+    expect(expectedInput.value).toBe('预期')
+
+    cleanup()
+  })
+
+  it('添加行动四字段完整；编辑参数不清空工具/目的/预期结果（整数组重建回归）', async () => {
+    const { graph } = makeTestGraph()
+    insertRawGraph(graph, sampleRaw())
+    await flush()
+    const { host, cleanup } = mountPanel(graph, 'n2')
+    await nextTick()
+
+    const firstStepBlock = host.querySelectorAll('.property-panel__step')[0]!
+    const addActionButton = [...firstStepBlock.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('添加动作'),
+    ) as HTMLButtonElement
+    addActionButton.click()
+    await nextTick()
+    const actions = taskOf(graph).steps[0]!.actions
+    expect(actions).toHaveLength(2)
+    expect(actions[1]).toEqual({ tool: '', purpose: '', expectedResult: '', params: {} })
+
+    // 编辑第一个行动的参数值：工具/目的/预期结果必须保留
+    const valueInput = firstStepBlock.querySelector(
+      'input[placeholder="值（自由填写）"]',
+    ) as HTMLInputElement
+    setValue(valueInput, 'v2')
+    await nextTick()
+    expect(taskOf(graph).steps[0]!.actions[0]).toEqual({
+      tool: 'tool',
+      purpose: '用途',
+      expectedResult: '预期',
+      params: { k: 'v2' },
+    })
+
+    cleanup()
+  })
+
   it('循环退出条件：添加/修改类型/删除即时生效', async () => {
     const { graph } = makeTestGraph()
     insertRawGraph(graph, sampleRaw())

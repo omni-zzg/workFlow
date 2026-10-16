@@ -1,10 +1,12 @@
 import { z } from 'zod'
 
+import { migrateFlowSchema } from './migrate'
 import type { FlowSchema } from './types'
 
 /**
  * 导入校验（design D5）：zod 定义与 TS 类型同源。
  * - 未识别的额外字段被忽略（为字段级扩展留余地）
+ * - 版本 1 的旧格式先经 migrate 迁移到当前版本（2）再校验
  * - 未知类型 / 缺失必需字段 / 不支持的版本 → 返回带路径的可读错误，拒绝导入
  */
 
@@ -21,7 +23,9 @@ const conditionZod = z.discriminatedUnion('type', [
 ])
 
 const actionZod = z.object({
-  name: z.string(),
+  tool: z.string(),
+  purpose: z.string(),
+  expectedResult: z.string(),
   params: z.record(z.string(), z.unknown()),
 })
 
@@ -86,7 +90,7 @@ const edgeZod = z.discriminatedUnion('kind', [
 ])
 
 export const flowSchemaZod = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   meta: z.object({ name: z.string(), description: z.string().optional() }),
   nodes: z.array(nodeZod),
   edges: z.array(edgeZod),
@@ -179,20 +183,23 @@ function formatIssue(issue: ZodLikeIssue): string {
 }
 
 export function parseFlowSchema(input: unknown): ParseFlowSchemaResult {
-  // 版本先行检查：给出明确原因（spec：拒绝不支持的版本并说明）
+  // 版本先行检查：给出明确原因（spec：拒绝不支持的版本并说明；v1 先迁移到当前版本）
   if (input && typeof input === 'object' && 'version' in input) {
     const version = (input as Record<string, unknown>).version
-    if (version !== 1) {
-      return { ok: false, errors: [`不支持的版本 ${String(version)}（当前支持的版本为 1）`] }
+    if (version !== 1 && version !== 2) {
+      return { ok: false, errors: [`不支持的版本 ${String(version)}（当前支持的版本为 1、2）`] }
     }
   }
 
-  const unknownTypeErrors = collectUnknownTypeErrors(input)
+  // v1 → v2（行动 name → tool 等）；v2 与畸形输入恒等返回，交由下方校验报错
+  const migrated = migrateFlowSchema(input)
+
+  const unknownTypeErrors = collectUnknownTypeErrors(migrated)
   if (unknownTypeErrors.length > 0) {
     return { ok: false, errors: unknownTypeErrors }
   }
 
-  const result = flowSchemaZod.safeParse(input)
+  const result = flowSchemaZod.safeParse(migrated)
   if (!result.success) {
     return { ok: false, errors: result.error.issues.map(formatIssue) }
   }

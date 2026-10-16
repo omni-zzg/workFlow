@@ -1,5 +1,5 @@
 /**
- * 任务流持久化数据模型（version 1）。
+ * 任务流持久化数据模型（version 2）。
  *
  * 设计原则（见 design.md D4/D5）：
  * - schema 是"结构约束器"而非"语义执行器"：只约束结构，内容均为人工填写的自由值。
@@ -40,9 +40,14 @@ export type ExitCondition =
 /** 两类连线：普通连线（依次衔接）/ 异常出口（失败时转向其他节点，可选） */
 export type EdgeKind = 'normal' | 'exception'
 
-/** 任务步骤中的动作（工具调用；params 为自由 JSON 对象，人工填写） */
+/** 任务步骤中的行动：运用工具完成一件事情（params 为自由 JSON 对象，人工填写） */
 export interface ReactAction {
-  name: string
+  /** 工具名：用什么（语义必填，缺项由校验 W1 提示） */
+  tool: string
+  /** 目的：这次用工具要完成什么（语义必填，缺项由校验 W1 提示） */
+  purpose: string
+  /** 预期结果（可选填写，与「观察」的实际结果形成对照） */
+  expectedResult: string
   params: Record<string, unknown>
 }
 
@@ -118,9 +123,9 @@ export interface FlowMeta {
   description?: string
 }
 
-/** 持久化格式（version 1） */
+/** 持久化格式（version 2；导入 v1 时经 migrate.ts 自动迁移） */
 export interface FlowSchema {
-  version: 1
+  version: 2
   meta: FlowMeta
   nodes: FlowNode[]
   edges: FlowEdge[]

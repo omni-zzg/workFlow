@@ -57,6 +57,33 @@ describe('端到端冒烟：任务流建模 → 校验 → 导出 → 回导', (
       ?.data as TaskData
     expect(taskData.name).toBe('查询天气并整理')
 
+    // 3b. 深层行动编辑（同属性面板提交路径）：工具/目的/预期结果/参数 → 仍零问题
+    mutate(graph, () => {
+      const data = taskNode.getData<TaskData>()
+      const steps = data.steps.map((step, index) =>
+        index === 0
+          ? {
+              ...step,
+              actions: [
+                {
+                  tool: 'web_search',
+                  purpose: '检索天气资料',
+                  expectedResult: '三条可用资料',
+                  params: { query: '北京天气' },
+                },
+              ],
+            }
+          : step,
+      )
+      taskNode.replaceData({ ...data, steps })
+    })
+    validateNow()
+    expect(issues.value).toEqual([])
+    const editedAction = (
+      projectRawGraph(graph).nodes.find((node) => node.nodeType === 'task')?.data as TaskData
+    ).steps[0]!.actions[0]!
+    expect(editedAction.tool).toBe('web_search')
+
     // 4. 清空循环退出条件 → E3
     mutate(graph, () => {
       const data = taskNode.getData<TaskData>()
@@ -93,6 +120,16 @@ describe('端到端冒烟：任务流建模 → 校验 → 导出 → 回导', (
     expect(result.ok).toBe(true)
     await flush()
     expect(exportFlowJson(target, { name: 'E2E 任务流' })).toEqual(text)
+    // 回导后行动四字段完整保留
+    const roundTripAction = (
+      projectRawGraph(target).nodes.find((node) => node.nodeType === 'task')?.data as TaskData
+    ).steps[0]!.actions[0]!
+    expect(roundTripAction).toEqual({
+      tool: 'web_search',
+      purpose: '检索天气资料',
+      expectedResult: '三条可用资料',
+      params: { query: '北京天气' },
+    })
 
     disposeValidation()
     setGraphRuntime(null)
